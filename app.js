@@ -685,110 +685,102 @@ if (beamTrack && beamHead && reasonsWrap && !(window.matchMedia && window.matchM
   });
 }
 
-/* ── Cursor / finger sparkle trail (gentle pastel sparkles) ── */
+/* ── Cursor / finger sparkle trail — pooled canvas (no DOM churn) ── */
 (function sparkleTrail() {
   if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const isCoarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
   const SPARKLE_COLORS = ['#E5898B', '#C7B8E8', '#D4AF37', '#9FAF90'];
-  const sparks = [];
-  const maxSparks = isCoarse ? 10 : 24;
-  const body = document.body;
 
-  function makeSpark(x, y) {
-    if (sparks.length >= maxSparks) {
-      const old = sparks.shift();
-      if (old && old.parentNode) old.parentNode.removeChild(old);
+  const canvas = document.createElement('canvas');
+  canvas.className = 'sparkle-canvas';
+  canvas.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+
+  const DPR = Math.min(window.devicePixelRatio || 1, 2);
+  let W = 0, H = 0;
+  function resize() {
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = W * DPR; canvas.height = H * DPR;
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  resize();
+  window.addEventListener('resize', resize, { passive: true });
+
+  let particles = [];
+  const MAX = isCoarse ? 40 : 90;
+
+  function spawn(x, y) {
+    particles.push({
+      x: x + (Math.random() * 16 - 8),
+      y: y + (Math.random() * 16 - 8),
+      vx: (Math.random() - 0.5) * 0.6,
+      vy: (Math.random() - 0.5) * 0.6 - 0.3,
+      life: 1,
+      decay: 0.028 + Math.random() * 0.03,
+      size: Math.random() * 3 + 2,
+      color: SPARKLE_COLORS[(Math.random() * SPARKLE_COLORS.length) | 0],
+    });
+    if (particles.length > MAX) particles.shift();
+  }
+
+  function frame() {
+    ctx.clearRect(0, 0, W, H);
+    particles = particles.filter(p => p.life > 0);
+    for (const p of particles) {
+      p.x += p.vx; p.y += p.vy; p.life -= p.decay;
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
     }
-    const el = document.createElement('span');
-    el.className = 'sparkle';
-    el.style.left = x + 'px';
-    el.style.top = y + 'px';
-    el.style.background = SPARKLE_COLORS[Math.floor(Math.random() * SPARKLE_COLORS.length)];
-    const size = Math.random() * 5 + 3;
-    el.style.width = size + 'px';
-    el.style.height = size + 'px';
-    body.appendChild(el);
-    sparks.push(el);
-    setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 700);
+    ctx.globalAlpha = 1;
+    if (particles.length) requestAnimationFrame(frame);
   }
 
   let throttle = false;
-  function onMove(e) {
+  const evt = isCoarse ? 'touchmove' : 'mousemove';
+  document.addEventListener(evt, (e) => {
     if (throttle) return;
     throttle = true;
-    setTimeout(() => { throttle = false; }, 40);
-    const x = e.clientX + (Math.random() * 14 - 7);
-    const y = e.clientY + (Math.random() * 14 - 7);
-    makeSpark(x, y);
-  }
-  document.addEventListener(isCoarse ? 'touchmove' : 'mousemove', onMove, { passive: true });
+    setTimeout(() => { throttle = false; }, 32);
+    spawn(e.clientX, e.clientY);
+    if (!particles.length) requestAnimationFrame(frame);
+  }, { passive: true });
 })();
 
 /* ═══════════════════════════════════════════
-   CONFETTI
+   CONFETTI — canvas-confetti (self-hosted vendor)
+   Choreographed heart/star finale in the site palette.
    ═══════════════════════════════════════════ */
-const confettiCanvas = document.getElementById('confettiCanvas');
-const cctx = confettiCanvas ? confettiCanvas.getContext('2d') : null;
-let confettiParticles = [];
-let confettiRunning = false;
-
-function resizeConfetti() {
-  if (!confettiCanvas) return;
-  confettiCanvas.width = window.innerWidth;
-  confettiCanvas.height = window.innerHeight;
-}
-resizeConfetti();
-let resizeTimer;
-window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(resizeConfetti, 150); });
-
 const CONFETTI_COLORS = ['#E5898B', '#F7C9C4', '#D4AF37', '#ECE7F6', '#C7E3D1', '#E8A86C', '#FFDFB0', '#FBF8F4'];
+const confettiLib = (typeof window !== 'undefined' && window.confetti) ? window.confetti : null;
+
+function heartShape() {
+  // Try text-based hearts (best quality); fall back to square confetti.
+  try {
+    return window.confetti.shapeFromText({ text: '♥', scalar: 2 });
+  } catch (e) {
+    return null;
+  }
+}
 
 function launchConfetti() {
-  if (!cctx) return;
-  confettiParticles = [];
-  for (let i = 0; i < 120; i++) {
-    confettiParticles.push({
-      x: window.innerWidth / 2,
-      y: window.innerHeight / 2,
-      vx: (Math.random() - 0.5) * 16,
-      vy: (Math.random() - 1) * 14,
-      w: Math.random() * 8 + 4,
-      h: Math.random() * 6 + 3,
-      color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
-      rotation: Math.random() * 360,
-      rotSpeed: (Math.random() - 0.5) * 12,
-      gravity: 0.25,
-      opacity: 1,
-      decay: Math.random() * 0.008 + 0.005,
-    });
-  }
-  confettiRunning = true;
-  animateConfetti();
-}
+  if (!confettiLib) return;
+  const heart = heartShape();
+  const shapes = heart ? [heart] : ['square'];
 
-function animateConfetti() {
-  if (!cctx || !confettiRunning) return;
-  cctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
-  let alive = false;
-  confettiParticles.forEach(p => {
-    if (p.opacity <= 0) return;
-    alive = true;
-    p.x += p.vx;
-    p.vy += p.gravity;
-    p.y += p.vy;
-    p.vx *= 0.99;
-    p.rotation += p.rotSpeed;
-    p.opacity -= p.decay;
-    cctx.save();
-    cctx.translate(p.x, p.y);
-    cctx.rotate((p.rotation * Math.PI) / 180);
-    cctx.globalAlpha = Math.max(0, p.opacity);
-    cctx.fillStyle = p.color;
-    cctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
-    cctx.restore();
-  });
-  if (alive) requestAnimationFrame(animateConfetti);
-  else { confettiRunning = false; cctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height); }
+  // 1) burst from center
+  confettiLib({ particleCount: 90, spread: 75, startVelocity: 34, scalar: 1.1, ticks: 220, colors: CONFETTI_COLORS, shapes });
+  // 2) side canons from the bottom corners
+  confettiLib({ particleCount: 55, angle: 60, spread: 60, origin: { x: 0, y: 0.9 }, colors: CONFETTI_COLORS, shapes });
+  confettiLib({ particleCount: 55, angle: 120, spread: 60, origin: { x: 1, y: 0.9 }, colors: CONFETTI_COLORS, shapes });
+  // 3) gentle heart rain afterwards
+  setTimeout(() => {
+    confettiLib({ particleCount: 40, spread: 120, startVelocity: 18, gravity: 0.7, ticks: 260, scalar: 1.3, colors: ['#E5898B', '#F7C9C4', '#D4AF37'], shapes });
+  }, 350);
 }
 
 /* ── Hearts-dedicated counter (persisted locally) ── */
@@ -1299,6 +1291,8 @@ let audioCtx = null;
 let ambientGain = null;
 let ambientOscillators = [];
 let ambientNoise = null;
+let analyser = null;
+let beatRAF = null;
 
 function startAmbient() {
   const AC = window.AudioContext || window.webkitAudioContext;
@@ -1306,9 +1300,42 @@ function startAmbient() {
   if (!audioCtx) audioCtx = new AC();
   if (audioCtx.state === 'suspended') audioCtx.resume();
 
+  // Analyser for beat-reactive lighting
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 64;
+  analyser.smoothingTimeConstant = 0.75;
+  const beatData = new Uint8Array(analyser.frequencyBinCount);
+
   ambientGain = audioCtx.createGain();
   ambientGain.gain.value = 0;
-  ambientGain.connect(audioCtx.destination);
+  ambientGain.connect(analyser);
+  analyser.connect(audioCtx.destination);
+
+  // Beat-pump loop: sets CSS vars for lighting + feeds Butterfly3D
+  function beatLoop() {
+    if (!analyser || !isPlaying) { beatRAF = null; return; }
+    analyser.getByteFrequencyData(beatData);
+    // Low band (bass ~58-260 Hz) → warmth pulse
+    let low = 0, mid = 0, high = 0, sum = 0;
+    for (let i = 0; i < beatData.length; i++) {
+      const v = beatData[i] / 255;
+      sum += v;
+      if (i < 4) low += v;
+      else if (i < 10) mid += v;
+      else high += v;
+    }
+    const avg = sum / beatData.length;
+    low = Math.min(1, low / 4);
+    mid = Math.min(1, mid / 6);
+    high = Math.min(1, high / (beatData.length - 10));
+    document.documentElement.style.setProperty('--beat-low', String(low));
+    document.documentElement.style.setProperty('--beat-mid', String(mid));
+    document.documentElement.style.setProperty('--beat-high', String(high));
+    document.documentElement.style.setProperty('--beat-avg', String(avg));
+    if (window.Butterfly3D && window.Butterfly3D.setBeat) window.Butterfly3D.setBeat(low);
+    beatRAF = requestAnimationFrame(beatLoop);
+  }
+  beatLoop();
 
   const lp = audioCtx.createBiquadFilter();
   lp.type = 'lowpass';
@@ -1348,6 +1375,7 @@ function startAmbient() {
 
 function stopAmbient() {
   if (!ambientGain || !audioCtx) return;
+  if (beatRAF) { cancelAnimationFrame(beatRAF); beatRAF = null; }
   const ctx = audioCtx;
   ambientGain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.6);
   setTimeout(() => {
@@ -1356,6 +1384,7 @@ function stopAmbient() {
     ambientOscillators = [];
     ambientNoise = null;
     ambientGain = null;
+    analyser = null;
     try { ctx.close(); } catch (e) {}
     audioCtx = null;
   }, 700);
@@ -1376,6 +1405,7 @@ function ambientSwoop() {
 dockPlay.addEventListener('click', () => {
   isPlaying = !isPlaying;
   dockVinyl.classList.toggle('spinning', isPlaying);
+  audioDock.classList.toggle('playing', isPlaying);
   dockPlay.textContent = isPlaying ? '❚❚' : '▶';
   dockPlay.setAttribute('aria-label', isPlaying ? 'Pause the exhibition sound' : 'Play the exhibition sound');
   if (isPlaying) {
@@ -1684,6 +1714,45 @@ if (spotlightGlow) {
     }, { passive: true });
   }
 }
+
+/* ── Hero ambience — tsParticles: drifting hearts + sakura motes ── */
+(function heroParticles() {
+  const container = document.getElementById('heroParticles');
+  if (!container || !window.tsParticles) return;
+  const reduceM = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduceM) return;
+
+  window.tsParticles.load({
+    id: 'heroParticles',
+    options: {
+      fullScreen: { enable: false },
+      fpsLimit: 45,
+      background: { color: 'transparent' },
+      particles: {
+        number: { value: 26, density: { enable: true, width: 900, height: 700 } },
+        color: { value: ['#E5898B', '#F7C9C4', '#D4AF37', '#A84A4C'] },
+        shape: { type: ['heart', 'circle'] },
+        opacity: { value: { min: 0.12, max: 0.5 } },
+        size: { value: { min: 2, max: 5 } },
+        move: {
+          enable: true,
+          speed: { min: 0.3, max: 0.9 },
+          direction: 'top',
+          straight: false,
+          outModes: { default: 'out' },
+          drift: 0.4,
+        },
+        rotate: { value: { min: 0, max: 360 }, animation: { enable: true, speed: 8 } },
+        shadow: { enable: false },
+      },
+      interactivity: {
+        events: { onHover: { enable: true, mode: 'repulse' }, resize: { enable: true } },
+        modes: { repulse: { distance: 90, duration: 0.35 } },
+      },
+      detectRetina: true,
+    },
+  }).catch(() => {});
+})();
 
 } catch(err) {
   console.error('Animation init error:', err);

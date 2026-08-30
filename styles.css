@@ -3404,3 +3404,211 @@ body.no-scroll { overflow: hidden; }
   .toast.show { transform: none !important; }
   .toast.hiding { transform: none !important; }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   VISUAL OVERHAUL — three.js butterfly, aurora, lighting effects
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── 3D butterfly companion — full-viewport canvas layer ── */
+.butterfly3d {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+.butterfly3d.ready { opacity: 1; }
+
+/* tsParticles hero ambience */
+.hero-particles {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Cursor sparkle trail canvas (pooled, replaces DOM sparkle nodes) */
+.sparkle-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* ── Aurora mesh-gradient behind the hero ── */
+.aurora {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  filter: blur(60px);
+  opacity: 0.75;
+}
+.aurora::before,
+.aurora::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(40px);
+  mix-blend-mode: screen;
+}
+.aurora::before {
+  width: 55vmax;
+  height: 55vmax;
+  left: -12vmax;
+  top: -14vmax;
+  background: radial-gradient(circle at 30% 30%, rgba(229, 137, 139, 0.45), rgba(247, 201, 196, 0.18) 45%, transparent 70%);
+  animation: auroraDrift 16s ease-in-out infinite alternate;
+}
+.aurora::after {
+  width: 48vmax;
+  height: 48vmax;
+  right: -10vmax;
+  bottom: -16vmax;
+  background: radial-gradient(circle at 60% 40%, rgba(212, 175, 55, 0.32), rgba(229, 137, 139, 0.16) 50%, transparent 72%);
+  animation: auroraDrift 20s ease-in-out infinite alternate-reverse;
+}
+@keyframes auroraDrift {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  50%  { transform: translate3d(4vmax, 2vmax, 0) scale(1.12); }
+  100% { transform: translate3d(-3vmax, -2vmax, 0) scale(0.94); }
+}
+
+/* ── Site-wide paper-grain noise (SVG feTurbulence data-URI) ── */
+.noise-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ── Shiny text — hero title italic sweep ── */
+.hero-title-italic {
+  background: linear-gradient(100deg, #A84A4C 0%, #E5898B 22%, #F7C9C4 38%, #fff 50%, #F7C9C4 62%, #E5898B 78%, #A84A4C 100%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: shinySweep 7s ease-in-out infinite;
+}
+@keyframes shinySweep {
+  0%   { background-position: 130% 0; }
+  55%  { background-position: -30% 0; }
+  100% { background-position: -30% 0; }
+}
+
+/* ── Border Glow — finale card rotating conic frame ── */
+.finale-card { isolation: isolate; }
+.finale-card::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 19px;
+  padding: 1.5px;
+  background: conic-gradient(from var(--glow-angle, 0deg),
+    transparent 0deg, rgba(229,137,139,0.85) 60deg, rgba(212,175,55,0.9) 120deg,
+    rgba(247,201,196,0.7) 180deg, rgba(212,175,55,0.9) 240deg, rgba(229,137,139,0.85) 300deg, transparent 360deg);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.55;
+  animation: borderGlowSpin 9s linear infinite;
+}
+@keyframes borderGlowSpin {
+  to { --glow-angle: 360deg; }
+}
+@property --glow-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+/* ── Glare Hover — bento cards diagonal light sweep ── */
+.bento-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.45) 48%, transparent 66%);
+  transform: translateX(-120%);
+  transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+.bento-card:hover::after { transform: translateX(120%); }
+
+/* ── Pink meteors — finale streaks (react-bits pattern) ── */
+.meteors {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+.meteor {
+  position: absolute;
+  width: 90px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, rgba(229,137,139,0.9));
+  filter: drop-shadow(0 0 6px rgba(229,137,139,0.7));
+  opacity: 0;
+  animation: meteorFall 4.2s linear infinite;
+}
+.meteor:nth-child(1) { top: 8%;  left: -12%; animation-delay: 0s; }
+.meteor:nth-child(2) { top: 26%; left: -8%;  animation-delay: 1.3s; transform: rotate(18deg); }
+.meteor:nth-child(3) { top: 55%; left: -16%; animation-delay: 2.6s; transform: rotate(10deg); }
+@keyframes meteorFall {
+  0%   { opacity: 0; transform: translateX(0) rotate(12deg); }
+  8%   { opacity: 1; }
+  70%  { opacity: 1; }
+  100% { opacity: 0; transform: translateX(140vw) rotate(12deg); }
+}
+
+/* ── Beat-reactive lighting (CSS vars set by the audio analyser) ── */
+:root {
+  --beat-low: 0;
+  --beat-mid: 0;
+  --beat-high: 0;
+  --beat-avg: 0;
+}
+/* spotlight breathes with the bass */
+.spotlight-glow {
+  opacity: calc(0.55 + var(--beat-low) * 0.9);
+}
+/* fairy lights pulse to the mid band */
+.fairy-light {
+  filter: brightness(calc(0.7 + var(--beat-mid) * 0.8));
+  transition: filter 0.12s ease;
+}
+/* vinyl pumps with the kick */
+.dock-vinyl { will-change: transform; }
+.audio-dock.playing .dock-vinyl {
+  animation: vinylPulse 0.5s ease-out;
+}
+@keyframes vinylPulse {
+  0% { transform: scale(1); }
+  40% { transform: scale(calc(1 + var(--beat-low) * 0.05)); }
+  100% { transform: scale(1); }
+}
+/* hero title glow intensifies with the beat */
+.hero-title {
+  text-shadow: 0 0 calc(8px + var(--beat-high) * 18px) rgba(229, 137, 139, calc(0.12 + var(--beat-high) * 0.25));
+  transition: text-shadow 0.15s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora, .aurora::before, .aurora::after { animation: none; opacity: 0.35; }
+  .hero-title-italic { animation: none; background-position: 0 0; }
+  .finale-card::after { animation: none; opacity: 0.25; }
+  .meteor { animation: none; opacity: 0; }
+  .bento-card::after { display: none; }
+  .noise-overlay { opacity: 0.02; }
+}

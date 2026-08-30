@@ -23,11 +23,12 @@ function minifyCSS(css) {
   return code.toString('utf8');
 }
 
-function minifyJS(js) {
+function minifyJS(js, isModule) {
   const terser = require('terser');
   // terser.minify returns a Promise (async worker). compress defaults are
   // conservative and well-tested; mangle keeps output small without risk.
   return terser.minify(js, {
+    module: !!isModule,
     compress: {
       passes: 2,
       // Preserve behaviour that relies on retained property reads / void
@@ -42,12 +43,13 @@ function minifyJS(js) {
 // Main execution
 const args = process.argv.slice(2);
 if (args.length < 2) {
-  console.error('Usage: node minify.js <input-file> <output-file>');
+  console.error('Usage: node minify.js <input-file> <output-file> [--module]');
   process.exit(1);
 }
 
 const [inputFile, outputFile] = args;
 const ext = path.extname(inputFile).toLowerCase();
+const isModule = args.includes('--module');
 
 (async function main() {
   try {
@@ -57,7 +59,7 @@ const ext = path.extname(inputFile).toLowerCase();
     if (ext === '.css') {
       minified = minifyCSS(content);
     } else if (ext === '.js') {
-      const result = await minifyJS(content);
+      const result = await minifyJS(content, isModule);
       if (result.error) throw result.error;
       minified = result.code;
     } else {

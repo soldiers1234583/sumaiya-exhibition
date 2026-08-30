@@ -44,12 +44,30 @@
 
 <!-- Animation libs (self-hosted, single bundled script, deferred) -->
 <script defer src="/vendor/bundle.js"></script>
+<script defer src="/vendor/canvas-confetti.min.js"></script>
+<script defer src="/vendor/tsparticles.bundle.min.js"></script>
 
-<link rel="stylesheet" href="/styles.min.css?v=4">
+<!-- ES module import map: three.js + addons resolve locally -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "/vendor/three.module.min.js",
+    "three/addons/": "/vendor/addons/"
+  }
+}
+</script>
+
+<link rel="stylesheet" href="/styles.min.css?v=5">
 </head>
 <body>
 <!-- Museum spotlight — soft warm glow that lazily follows the cursor -->
 <div class="spotlight-glow" id="spotlightGlow" aria-hidden="true"></div>
+
+<!-- Site-wide paper grain -->
+<div class="noise-overlay" aria-hidden="true"></div>
+
+<!-- 3D butterfly companion (three.js) — full-viewport layer -->
+<canvas class="butterfly3d" id="butterfly3d" aria-hidden="true"></canvas>
 
 <a class="skip-link" href="#main">Skip to content</a>
 
@@ -250,6 +268,10 @@
      ═══════════════════════════════════════════ -->
 <main id="main">
 <section class="hero section" id="hero" aria-label="Exhibition entrance">
+  <!-- Pink mesh-gradient aurora -->
+  <div class="aurora" aria-hidden="true"></div>
+  <!-- Floating hearts & sakura motes (tsParticles canvas) -->
+  <div class="hero-particles" id="heroParticles" aria-hidden="true"></div>
   <!-- Cozy fairy lights along the top -->
   <div class="fairy-lights" aria-hidden="true">
     <span class="fairy-light" style="left: 8%;"></span>
@@ -534,6 +556,11 @@
     <div class="washi washi--tr" aria-hidden="true"></div>
     <div class="washi washi--bl" aria-hidden="true"></div>
     <div class="washi washi--br" aria-hidden="true"></div>
+    <div class="meteors" aria-hidden="true">
+      <span class="meteor"></span>
+      <span class="meteor"></span>
+      <span class="meteor"></span>
+    </div>
 
     <div class="polaroid-stack">
       <div class="polaroid polaroid-back polaroid-back--1" role="img" aria-hidden="true">
@@ -601,8 +628,7 @@
   <button class="dock-play btn-interactive" id="dockPlay" aria-label="Play 505 by Arctic Monkeys">▶</button>
 </div>
 
-<!-- Confetti canvas -->
-<canvas class="confetti-canvas" id="confettiCanvas" aria-hidden="true"></canvas>
+<!-- Confetti is provided by canvas-confetti (self-hosted vendor) -->
 
 <!-- Toast container -->
 <div class="toast-container" id="toastContainer" aria-live="polite" aria-label="Notifications"></div>
@@ -697,7 +723,10 @@
 })();
 </script>
 
-<script defer src="/app.min.js?v=4"></script>
+<script defer src="/app.min.js?v=5"></script>
+
+<!-- 3D butterfly companion — ES module (loads after import map) -->
+<script type="module" src="/butterfly3d.min.js?v=5"></script>
 
 </body>
 </html>
