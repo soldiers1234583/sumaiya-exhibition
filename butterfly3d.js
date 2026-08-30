@@ -19,11 +19,13 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 
 const DPR_CAP = 2;
 const CAM_DIST = 12;
+const PRELOADER_CAM_DIST = 5.5;
+const PRELOADER_SCALE = 0.62; // fits the 238×199 preloader motif box
 const FOV = 55;
 const HOVER_R = 0.28;
-const MODEL_SCALE = 0.05; // wing geometry is in raw SVG units (~104 wide) → ~5 world units
-const POINTER_BLEND = 0.5;   // how strongly the butterfly chases the cursor
-const IDLE_MS = 2600;        // after this long without a pointer move, return to perch
+const MODEL_SCALE = 0.05;
+const POINTER_BLEND = 0.5;
+const IDLE_MS = 2600;
 
 // Fallback wing outlines — same art as the inline preloader SVG.
 const WING_PATHS = {
@@ -189,8 +191,9 @@ function buildButterfly(scene, loader) {
 
 /* ── behaviour state machine ── */
 class Butterfly {
-  constructor(canvas) {
+  constructor(canvas, opts = {}) {
     this.canvas = canvas;
+    this.preloader = !!opts.preloader;
     this.started = false;
     this.reduced = REDUCE;
     this.beat = 0;
@@ -208,7 +211,7 @@ class Butterfly {
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 100);
-    this.camera.position.set(0, 0, CAM_DIST);
+    this.camera.position.set(0, 0, this.preloader ? PRELOADER_CAM_DIST : CAM_DIST);
 
     // Lights: cool key + warm rim for iridescence + gentle fill.
     this.scene.add(new THREE.HemisphereLight(0xbfd8ff, 0xffe6c9, 1.05));
@@ -223,6 +226,7 @@ class Butterfly {
     this.scene.add(fill);
 
     this.butterfly = buildButterfly(this.scene, new SVGLoader());
+    if (this.preloader) this.butterfly.scale.setScalar(PRELOADER_SCALE);
 
     // Post: bloom flares the iridescent highlights.
     this.composer = new EffectComposer(this.renderer);
@@ -251,10 +255,16 @@ class Butterfly {
 
     this._onResize();
     window.addEventListener('resize', this._onResize = this._onResize.bind(this));
-    window.addEventListener('pointermove', this.boundPointer, { passive: true });
-    window.addEventListener('click', this.boundStartle, { passive: true });
-    window.addEventListener('scroll', this.boundScroll, { passive: true });
-    this.updatePerch();
+    if (!this.preloader) {
+      window.addEventListener('pointermove', this.boundPointer, { passive: true });
+      window.addEventListener('click', this.boundStartle, { passive: true });
+      window.addEventListener('scroll', this.boundScroll, { passive: true });
+      this.updatePerch();
+    } else {
+      // Preloader: fixed idle perch at the centre of the motif.
+      this.target.set(0, 0, 0);
+      this.flapAmp = 0.55;
+    }
 
     if (this.reduced) {
       // Render one static frame — wings gently open — and stop.
@@ -307,13 +317,17 @@ class Butterfly {
   }
 
   _half() {
-    const halfH = Math.tan(THREE.MathUtils.degToRad(FOV / 2)) * CAM_DIST;
-    const aspect = (window.innerWidth || 1) / (window.innerHeight || 1);
+    const camDist = this.preloader ? PRELOADER_CAM_DIST : CAM_DIST;
+    const halfH = Math.tan(THREE.MathUtils.degToRad(FOV / 2)) * camDist;
+    const w = this.canvas.clientWidth || window.innerWidth || 1;
+    const h = this.canvas.clientHeight || window.innerHeight || 1;
+    const aspect = w / h;
     return { x: halfH * aspect, y: halfH };
   }
 
   _onResize() {
-    const w = window.innerWidth || 1, h = window.innerHeight || 1;
+    const w = this.canvas.clientWidth || window.innerWidth || 1;
+    const h = this.canvas.clientHeight || window.innerHeight || 1;
     this.renderer.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
@@ -417,19 +431,51 @@ class Butterfly {
 
 /* ── boot ── */
 (function init() {
-  const canvas = document.getElementById('butterfly3d');
-  if (!canvas) return;
-  let butterfly = null;
-  try {
-    butterfly = new Butterfly(canvas);
-    canvas.classList.add('ready');
-  } catch (err) {
-    console.error('Butterfly3D init failed:', err);
-    canvas.remove();
-    return;
+  const companionCanvas = document.getElementById('butterfly3d');
+  const preloaderCanvas = document.getElementById('preloaderButterfly3d');
+  const preloader = document.getElementById('preloader');
+  if (!companionCanvas && !preloaderCanvas) return;
+
+  let companion = null;
+  let pre = null;
+
+  // Preloader butterfly: WebGL boots after first paint; fade it in over the SVG.
+  if (preloaderCanvas) {
+    try {
+      pre = new Butterfly(preloaderCanvas, { preloader: true });
+      preloaderCanvas.classList.add('ready');
+      // Fade the 2D SVG art out underneath (CSS handles the transition).
+      if (preloader) preloader.classList.add('preloader-3d-ready');
+    } catch (err) {
+      console.error('Preloader Butterfly3D failed:', err);
+      preloaderCanvas.remove();
+    }
   }
+
+  if (companionCanvas) {
+    try {
+      companion = new Butterfly(companionCanvas);
+      companionCanvas.classList.add('ready');
+    } catch (err) {
+      console.error('Butterfly3D init failed:', err);
+      companionCanvas.remove();
+      companion = null;
+    }
+  }
+
+  // Tear down the preloader 3D scene once the splash leaves the DOM.
+  if (pre && preloader) {
+    new MutationObserver((muts, obs) => {
+      if (!document.getElementById('preloader')) {
+        obs.disconnect();
+        pre.dispose();
+        pre = null;
+      }
+    }).observe(preloader.parentNode, { childList: true });
+  }
+
   window.Butterfly3D = {
-    start: () => { if (butterfly && !butterfly.started && !butterfly.reduced) { butterfly.started = true; butterfly.renderer.setAnimationLoop(butterfly.loop); } },
-    setBeat: (v) => { if (butterfly) butterfly.setBeat(v); },
+    start: () => { if (companion && !companion.started && !companion.reduced) { companion.started = true; companion.renderer.setAnimationLoop(companion.loop); } },
+    setBeat: (v) => { if (companion) companion.setBeat(v); },
   };
 })();
