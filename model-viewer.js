@@ -7,6 +7,8 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
 const REDUCE = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Target wingspan in world units — smaller = smaller butterfly on screen.
+const TARGET_SPAN = 1.8;
 
 const canvas = document.getElementById('viewer');
 const status = document.getElementById('status');
@@ -22,7 +24,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xf3ead9);
 
 const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 100);
-camera.position.set(4, 2, 8);
+camera.position.set(6, 3, 11);
 
 // Lights
 scene.add(new THREE.HemisphereLight(0xbfd8ff, 0xffe6c9, 1.0));
@@ -82,7 +84,7 @@ async function loadModel() {
     // Normalize scale & center
     const box = new THREE.Box3().setFromObject(model);
     const size = box.getSize(new THREE.Vector3());
-    const s = 5.2 / Math.max(1e-6, size.x, size.y, size.z);
+    const s = TARGET_SPAN / Math.max(1e-6, size.x, size.y, size.z);
     model.scale.setScalar(s);
     model.updateMatrixWorld(true);
     const box2 = new THREE.Box3().setFromObject(model);
@@ -136,7 +138,7 @@ document.getElementById('btnAuto').addEventListener('click', () => {
   document.getElementById('btnAuto').textContent = 'Auto-rotate: ' + (controls.autoRotate ? 'on' : 'off');
 });
 document.getElementById('btnReset').addEventListener('click', () => {
-  camera.position.set(4, 2, 8);
+  camera.position.set(6, 3, 11);
   controls.target.set(0, 0, 0);
   controls.update();
 });

@@ -424,11 +424,11 @@ class Butterfly {
       }
     });
 
-    // Normalise scale: fit the largest axis to ~5.2 world units (procedural
-    // wingspan) and centre the model so behaviour transforms apply cleanly.
+    // Normalise scale: fit the largest axis to a modest wingspan so the
+    // butterfly stays a tasteful companion, not a screen-filler.
     const box = new THREE.Box3().setFromObject(model);
     const size = box.getSize(new THREE.Vector3());
-    const s = 5.2 / Math.max(1e-6, size.x, size.y, size.z);
+    const s = 1.8 / Math.max(1e-6, size.x, size.y, size.z);
     model.scale.setScalar(s);
     model.updateMatrixWorld(true);
     const box2 = new THREE.Box3().setFromObject(model);
