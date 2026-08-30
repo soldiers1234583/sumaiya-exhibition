@@ -30,6 +30,12 @@ const MODEL_CANDIDATES = [
   'models/butterfly.gltf',
 ];
 
+// Orientation tuning for the external model (radians). The Travis Davids
+// FBX pack has the body pointing along +Z with wings in the XZ plane; these
+// defaults already suit it. Adjust if a different model loads upside-down.
+const MODEL_ROT_X = 0;
+const MODEL_ROT_Y = 0;
+
 async function findModelFile() {
   for (const p of MODEL_CANDIDATES) {
     try {
@@ -394,6 +400,30 @@ class Butterfly {
     const model = res.scene || res;
     const clips = res.animations || model.animations || [];
 
+    // Morpho didius texture set shipped alongside the model (FBX packs don't
+    // embed their textures — apply them manually, per the pack's Read Me).
+    const texLoader = new THREE.TextureLoader();
+    const mapTex = texLoader.load('models/textures/DIFFUSE_Morpho_didius_Male_Dos_MHNT.jpg');
+    const alphaTex = texLoader.load('models/textures/ALPHA_OR_OPACITY_MASK_Morpho_didius_Male_Dos_MHNT.jpg');
+    const normalTex = texLoader.load('models/textures/NORMAL_MAP_Morpho_didius_Male_Dos_MHNT_NRM.jpg');
+    mapTex.colorSpace = THREE.SRGBColorSpace;
+
+    model.traverse((o) => {
+      if (o.isMesh) {
+        const mat = new THREE.MeshStandardMaterial({
+          map: mapTex,
+          alphaMap: alphaTex,
+          normalMap: normalTex,
+          transparent: true,
+          side: THREE.DoubleSide,
+          roughness: 0.5,
+          metalness: 0,
+        });
+        o.material = mat;
+        if (o.geometry) o.geometry.computeVertexNormals();
+      }
+    });
+
     // Normalise scale: fit the largest axis to ~5.2 world units (procedural
     // wingspan) and centre the model so behaviour transforms apply cleanly.
     const box = new THREE.Box3().setFromObject(model);
@@ -404,6 +434,9 @@ class Butterfly {
     const box2 = new THREE.Box3().setFromObject(model);
     const center = box2.getCenter(new THREE.Vector3());
     model.position.sub(center);
+    // Face the camera / point the body forward (tune per model).
+    model.rotation.x = MODEL_ROT_X;
+    model.rotation.y = MODEL_ROT_Y;
 
     // Swap out the procedural art
     while (this.butterfly.children.length) {
