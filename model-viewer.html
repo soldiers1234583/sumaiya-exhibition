@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Butterfly Model Viewer — Morpho didius (CGTrader)</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; font-family: Georgia, 'Times New Roman', serif; }
+  body {
+    background: radial-gradient(120% 90% at 50% 0%, #fff8ec 0%, #f3ead9 45%, #e4d5bd 100%);
+    color: #23201a;
+  }
+  #viewer { position: fixed; inset: 0; display: block; }
+  .ui {
+    position: fixed; inset: 0; pointer-events: none; display: flex; flex-direction: column;
+    justify-content: space-between; padding: 1.2rem 1.5rem;
+  }
+  .ui h1 { margin: 0; font-weight: 400; font-size: clamp(0.9rem, 2vw, 1.2rem); letter-spacing: 0.03em; opacity: 0.85; }
+  .ui h1 small { display: block; font-size: 0.7em; opacity: 0.5; font-style: italic; margin-top: 0.15rem; }
+  .hint { font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.5; text-align: center; }
+  .controls { pointer-events: auto; align-self: center; display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center; }
+  .controls button {
+    font-family: inherit; font-size: 0.75rem; letter-spacing: 0.06em; background: rgba(255,255,255,0.55);
+    border: 1px solid rgba(35,32,26,0.25); border-radius: 999px; padding: 0.45rem 0.95rem; cursor: pointer;
+    color: #23201a; backdrop-filter: blur(6px); transition: all 0.2s ease;
+  }
+  .controls button:hover { background: #fff; transform: translateY(-1px); }
+  .status {
+    position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    font-style: italic; opacity: 0.6; text-align: center; max-width: 36ch; z-index: 5;
+  }
+  .status.err { color: #a04030; opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { .ui, .controls { display: none; } }
+</style>
+</head>
+<body>
+<canvas id="viewer" aria-label="3D butterfly model viewer"></canvas>
+<div class="status" id="status">warming up the butterfly…</div>
+
+<div class="ui">
+  <h1>Morpho didius — Travis Davids Pack <small>Animated Butterfly Pack By Travis Davids · CGTrader · idle wing-flap animation</small></h1>
+  <div class="controls" aria-label="Viewer controls">
+    <button id="btnPlay">Pause animation</button>
+    <button id="btnAuto">Auto-rotate: on</button>
+    <button id="btnReset">Reset view</button>
+  </div>
+  <div class="hint">drag to orbit · scroll to zoom · pinch to zoom</div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "/vendor/three.module.min.js",
+    "three/addons/": "/vendor/addons/"
+  }
+}
+</script>
+<script type="module" src="/model-viewer.min.js"></script>
+</body>
+</html>
