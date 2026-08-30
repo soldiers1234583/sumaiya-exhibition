@@ -1731,7 +1731,7 @@ if (spotlightGlow) {
       particles: {
         number: { value: 26, density: { enable: true, width: 900, height: 700 } },
         color: { value: ['#E5898B', '#F7C9C4', '#D4AF37', '#A84A4C'] },
-        shape: { type: ['heart', 'circle'] },
+        shape: { type: ['star', 'circle'] },
         opacity: { value: { min: 0.12, max: 0.5 } },
         size: { value: { min: 2, max: 5 } },
         move: {
