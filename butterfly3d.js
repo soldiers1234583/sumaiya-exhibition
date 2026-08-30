@@ -13,9 +13,32 @@
    ═══════════════════════════════════════════════════════════ */
 import * as THREE from 'three';
 import { SVGLoader } from 'three/addons/loaders/SVGLoader.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+// Optional pre-made butterfly model (e.g. from CGTrader). Drop a file into
+// /models/ as butterfly.glb, butterfly.fbx, butterflies.glb, ... — it will be
+// used instead of the procedural Morpho. If absent, the procedural one shows.
+const MODEL_CANDIDATES = [
+  'models/butterfly.glb',
+  'models/butterfly.fbx',
+  'models/butterflies.glb',
+  'models/butterflies.fbx',
+  'models/butterfly.gltf',
+];
+
+async function findModelFile() {
+  for (const p of MODEL_CANDIDATES) {
+    try {
+      const r = await fetch(p, { method: 'HEAD' });
+      if (r.ok) return p;
+    } catch (e) { /* keep trying */ }
+  }
+  return null;
+}
 
 const DPR_CAP = 2;
 const CAM_DIST = 12;
@@ -234,6 +257,11 @@ class Butterfly {
       this.butterfly.rotation.z = 0.18;
     }
 
+    // If a real model exists in /models/, swap it in when ready.
+    this.modelMixer = null;
+    this.modelLoaded = false;
+    this._tryLoadModel();
+
     // Post: bloom flares the iridescent highlights.
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
@@ -341,6 +369,59 @@ class Butterfly {
     if (this.bloom) this.bloom.setSize(w, h);
   }
 
+  /* Load a real pre-made butterfly model (e.g. from CGTrader) from /models/.
+     When present it replaces the procedural Morpho and its own animation clips
+     drive the flapping. Only used for the page-wide companion. */
+  async _tryLoadModel() {
+    if (this.preloader) return;
+    const path = await findModelFile();
+    if (!path) return;
+
+    let loader, res;
+    try {
+      if (path.endsWith('.fbx')) {
+        loader = new FBXLoader();
+        res = await loader.loadAsync(path);
+      } else {
+        loader = new GLTFLoader();
+        res = await loader.loadAsync(path);
+      }
+    } catch (err) {
+      console.error('Butterfly model load failed:', err);
+      return;
+    }
+
+    const model = res.scene || res;
+    const clips = res.animations || model.animations || [];
+
+    // Normalise scale: fit the largest axis to ~5.2 world units (procedural
+    // wingspan) and centre the model so behaviour transforms apply cleanly.
+    const box = new THREE.Box3().setFromObject(model);
+    const size = box.getSize(new THREE.Vector3());
+    const s = 5.2 / Math.max(1e-6, size.x, size.y, size.z);
+    model.scale.setScalar(s);
+    model.updateMatrixWorld(true);
+    const box2 = new THREE.Box3().setFromObject(model);
+    const center = box2.getCenter(new THREE.Vector3());
+    model.position.sub(center);
+
+    // Swap out the procedural art
+    while (this.butterfly.children.length) {
+      const c = this.butterfly.children[0];
+      this.butterfly.remove(c);
+      if (c.geometry) c.geometry.dispose();
+    }
+    this.butterfly.add(model);
+    this.modelLoaded = true;
+
+    if (clips.length) {
+      this.modelMixer = new THREE.AnimationMixer(model);
+      const action = this.modelMixer.clipAction(clips[0]);
+      action.setLoop(THREE.LoopRepeat);
+      action.play();
+    }
+  }
+
   loop = (time) => {
     const dt = Math.min(0.05, (time - (this._last || time)) / 1000);
     this._last = time;
@@ -350,34 +431,33 @@ class Butterfly {
   };
 
   step(dt) {
+    // If a real model is loaded, let its animation clips drive the flapping.
+    if (this.modelMixer) this.modelMixer.update(dt);
+
     const ph = this.phase;
 
-    // — flap: fast upstroke, slow downstroke, glide pause (mirrors the CSS art)
-    const f = ph % 1;
-    let flap;
-    if (f < 0.42) flap = Math.sin((f / 0.42) * Math.PI) * 1.0;       // quick up
-    else if (f < 0.55) flap = 0.0;                                    // top pause
-    else if (f < 0.85) flap = -Math.sin(((f - 0.55) / 0.30) * Math.PI) * 0.9; // slower down
-    else flap = 0.0;                                                  // bottom glide
-    const amp = this.flapAmp * (1 + this.beat * 0.7);
-    const wingL = this.butterfly.userData.wingL;
-    const wingR = this.butterfly.userData.wingR;
-    wingL.rotation.z = -flap * amp;
-    wingR.rotation.z = flap * amp;
-    // hindwing lag
-    wingL.children.forEach((m, i) => { if (i === 1 || i === 3) m.rotation.y = flap * 0.10 * amp; });
-    wingR.children.forEach((m, i) => { if (i === 1 || i === 3) m.rotation.y = -flap * 0.10 * amp; });
-    // micro camber
-    wingL.rotation.y = flap * 0.06 * amp;
-    wingR.rotation.y = -flap * 0.06 * amp;
-
-    // antennae sway with the flap
-    const ag = this.butterfly.userData.antenGroup;
-    ag.rotation.y = Math.sin(ph * Math.PI * 2) * 0.16;
-    ag.rotation.x = Math.sin(ph * Math.PI * 2 * 0.5) * 0.06;
-
-    // body bob synced to flap
-    const bob = Math.abs(flap) * 0.35 + Math.sin(this.hoverT * 2) * 0.12;
+    // — flap / body (only for the procedural butterfly)
+    let flap = 0, bob = 0;
+    if (!this.modelLoaded) {
+      const f = ph % 1;
+      if (f < 0.42) flap = Math.sin((f / 0.42) * Math.PI) * 1.0;
+      else if (f < 0.55) flap = 0.0;
+      else if (f < 0.85) flap = -Math.sin(((f - 0.55) / 0.30) * Math.PI) * 0.9;
+      else flap = 0.0;
+      const amp = this.flapAmp * (1 + this.beat * 0.7);
+      const wingL = this.butterfly.userData.wingL;
+      const wingR = this.butterfly.userData.wingR;
+      wingL.rotation.z = -flap * amp;
+      wingR.rotation.z = flap * amp;
+      wingL.children.forEach((m, i) => { if (i === 1 || i === 3) m.rotation.y = flap * 0.10 * amp; });
+      wingR.children.forEach((m, i) => { if (i === 1 || i === 3) m.rotation.y = -flap * 0.10 * amp; });
+      wingL.rotation.y = flap * 0.06 * amp;
+      wingR.rotation.y = -flap * 0.06 * amp;
+      const ag = this.butterfly.userData.antenGroup;
+      ag.rotation.y = Math.sin(ph * Math.PI * 2) * 0.16;
+      ag.rotation.x = Math.sin(ph * Math.PI * 2 * 0.5) * 0.06;
+      bob = Math.abs(flap) * 0.35 + Math.sin(this.hoverT * 2) * 0.12;
+    }
 
     // — steering: follow cursor when active, otherwise drift back to perch
     let tx = 0, ty = this.perchY, tz = 0;
