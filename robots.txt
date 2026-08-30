@@ -1,0 +1,8 @@
+# robots.txt for the Sumaiya Exhibition
+User-agent: *
+Allow: /
+
+# Dev/build internals are not part of the public exhibition
+Disallow: /dev/
+Disallow: /legacy/
+Disallow: /node_modules/

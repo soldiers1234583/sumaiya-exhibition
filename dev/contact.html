@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gallery Contact Sheet — Rotation Check</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #FBF8F4; color: #1A1A1A; margin: 0; padding: 2rem; }
+  h1 { font-size: 1.3rem; margin-bottom: 0.25rem; }
+  p { color: #5A5A60; margin-bottom: 1.5rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; }
+  .cell { border: 1px solid #e5ddd5; border-radius: 12px; overflow: hidden; background: #fff; }
+  .cell img { width: 100%; height: 240px; object-fit: contain; background: #F4EFEA; display: block; }
+  .cell .name { padding: 0.5rem 0.6rem; font-size: 0.7rem; color: #5A5A60; word-break: break-all; }
+  .cell .num { display: inline-block; background: #D4AF37; color: #fff; font-weight: 700; border-radius: 999px;
+               min-width: 22px; height: 22px; line-height: 22px; text-align: center; margin-right: 0.4rem; font-size: 0.7rem; }
+</style>
+</head>
+<body>
+<h1>Gallery Contact Sheet</h1>
+<p>Check each photo below. If any appear rotated (sideways or upside down), note its <b>number</b> and how it needs to turn (90°, 180°, 270°). Then tell me — I'll fix them before wiring into the site.</p>
+<div class="grid">
+  <div class="cell"><img src="images/gallery/IMG_20260814_174655_930.webp" alt="1"><div class="name"><span class="num">1</span>IMG_…930</div></div>
+  <div class="cell"><img src="images/gallery/IMG_20260814_174659_254.webp" alt="2"><div class="name"><span class="num">2</span>IMG_…254</div></div>
+  <div class="cell"><img src="images/gallery/IMG_20260814_174701_952.webp" alt="3"><div class="name"><span class="num">3</span>IMG_…952</div></div>
+  <div class="cell"><img src="images/gallery/IMG_20260814_174704_518.webp" alt="4"><div class="name"><span class="num">4</span>IMG_…518</div></div>
+  <div class="cell"><img src="images/gallery/IMG_20260814_174706_974.webp" alt="5"><div class="name"><span class="num">5</span>IMG_…974</div></div>
+  <div class="cell"><img src="images/gallery/IMG_20260814_174709_139.webp" alt="6"><div class="name"><span class="num">6</span>IMG_…139</div></div>
+  <div class="cell"><img src="images/gallery/IMG_20260814_174711_153.webp" alt="7"><div class="name"><span class="num">7</span>IMG_…153</div></div>
+  <div class="cell"><img src="images/gallery/IMG_20260814_174713_404.webp" alt="8"><div class="name"><span class="num">8</span>IMG_…404</div></div>
+  <div class="cell"><img src="images/gallery/IMG_20260814_174716_227.webp" alt="9"><div class="name"><span class="num">9</span>IMG_…227</div></div>
+  <div class="cell"><img src="images/gallery/IMG_20260814_174720_419.webp" alt="10"><div class="name"><span class="num">10</span>IMG_…419</div></div>
+  <div class="cell"><img src="images/gallery/IMG_20260814_174723_730.webp" alt="11"><div class="name"><span class="num">11</span>IMG_…730</div></div>
+  <div class="cell"><img src="images/gallery/IMG_20260814_174745_005.webp" alt="12"><div class="name"><span class="num">12</span>IMG_…005</div></div>
+  <div class="cell"><img src="images/gallery/IMG_20260814_174746_861.webp" alt="13"><div class="name"><span class="num">13</span>IMG_…861</div></div>
+  <div class="cell"><img src="images/gallery/IMG_20260814_174754_951.webp" alt="14"><div class="name"><span class="num">14</span>IMG_…951</div></div>
+  <div class="cell"><img src="images/gallery/IMG_20260814_174757_224.webp" alt="15"><div class="name"><span class="num">15</span>IMG_…224</div></div>
+</div>
+</body>
+</html>
