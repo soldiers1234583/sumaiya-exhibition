@@ -18,14 +18,12 @@ const ASSETS = [
   { src: 'styles.css', out: 'styles.min.css', kind: 'CSS' },
   { src: 'app.js', out: 'app.min.js', kind: 'JS' },
   { src: 'butterfly3d.js', out: 'butterfly3d.min.js', kind: 'JS', module: true },
-  { src: 'demo-realistic.js', out: 'demo-realistic.min.js', kind: 'JS', module: true },
 ];
 
 // Text assets that should get .br/.gz sidecars (excluding images/fonts).
 const SIDECAR_FILES = [
   'index.html',
   '404.html',
-  'demo-realistic.html',
   'robots.txt',
   'fonts.css',
   ...ASSETS.map(a => a.out),
@@ -73,7 +71,7 @@ for (const asset of ASSETS) {
 }
 
 // Sanity: the pages must reference the produced artifacts.
-const PAGES = { 'styles.min.css': 'index.html', 'app.min.js': 'index.html', 'butterfly3d.min.js': 'index.html', 'demo-realistic.min.js': 'demo-realistic.html' };
+const PAGES = { 'styles.min.css': 'index.html', 'app.min.js': 'index.html', 'butterfly3d.min.js': 'index.html' };
 for (const asset of ASSETS) {
   const page = PAGES[asset.out];
   if (!page) continue;
