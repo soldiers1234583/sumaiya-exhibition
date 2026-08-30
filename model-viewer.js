@@ -9,6 +9,8 @@ const DPR = Math.min(window.devicePixelRatio || 1, 2);
 const REDUCE = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 // Target wingspan in world units — smaller = smaller butterfly on screen.
 const TARGET_SPAN = 1.8;
+// Default flap speed multiplier (matches the preloader's brisk flap).
+const ANIM_SPEED = 1.9;
 
 const canvas = document.getElementById('viewer');
 const status = document.getElementById('status');
@@ -95,16 +97,19 @@ async function loadModel() {
 
     scene.add(model);
 
-    // Animation clips
+    // Animation clips — speed up to match the preloader butterfly's flap
+    // rhythm (3 quick flaps per ~4.8s → ~1.6s per flap; the FBX clip is 3s).
     if (obj.animations && obj.animations.length) {
       mixer = new THREE.AnimationMixer(model);
       const action = mixer.clipAction(obj.animations[0]);
       action.setLoop(THREE.LoopRepeat);
+      action.timeScale = ANIM_SPEED;
       action.play();
+      animAction = action;
     }
 
     status.textContent = model.animations
-      ? `✓ loaded · ${model.animations[0].name} (${model.animations[0].duration.toFixed(1)}s)`
+      ? `✓ loaded · ${model.animations[0].name} (${(model.animations[0].duration / ANIM_SPEED).toFixed(1)}s) · speed ${ANIM_SPEED}×`
       : '✓ loaded · no animation';
     status.classList.remove('err');
   } catch (err) {
@@ -128,9 +133,18 @@ else renderer.render(scene, camera);
 
 // Controls
 let paused = false;
+let animAction = null;
+const SPEEDS = [0.5, 1, 1.9, 3, 5];
+let speedIdx = 2;
+document.getElementById('btnSpeed').addEventListener('click', () => {
+  speedIdx = (speedIdx + 1) % SPEEDS.length;
+  const s = SPEEDS[speedIdx];
+  if (animAction) animAction.timeScale = s;
+  document.getElementById('btnSpeed').textContent = 'Flap speed: ' + s + '×';
+});
 document.getElementById('btnPlay').addEventListener('click', () => {
   paused = !paused;
-  if (mixer) mixer.timeScale = paused ? 0 : 1;
+  if (mixer) mixer.timeScale = paused ? 0 : SPEEDS[speedIdx];
   document.getElementById('btnPlay').textContent = paused ? 'Resume animation' : 'Pause animation';
 });
 document.getElementById('btnAuto').addEventListener('click', () => {

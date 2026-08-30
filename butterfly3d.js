@@ -35,6 +35,9 @@ const MODEL_CANDIDATES = [
 // defaults already suit it. Adjust if a different model loads upside-down.
 const MODEL_ROT_X = 0;
 const MODEL_ROT_Y = 0;
+// Playback speed for the external model's animation clip — tuned to the
+// preloader butterfly's brisk flap (3 flaps per ~4.8s cycle).
+const MODEL_ANIM_SPEED = 1.9;
 
 async function findModelFile() {
   for (const p of MODEL_CANDIDATES) {
@@ -451,6 +454,8 @@ class Butterfly {
       this.modelMixer = new THREE.AnimationMixer(model);
       const action = this.modelMixer.clipAction(clips[0]);
       action.setLoop(THREE.LoopRepeat);
+      // Speed up to the preloader butterfly's flap rhythm (3 flaps per ~4.8s).
+      action.timeScale = MODEL_ANIM_SPEED;
       action.play();
     }
   }
