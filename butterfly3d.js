@@ -226,7 +226,13 @@ class Butterfly {
     this.scene.add(fill);
 
     this.butterfly = buildButterfly(this.scene, new SVGLoader());
-    if (this.preloader) this.butterfly.scale.setScalar(PRELOADER_SCALE);
+    if (this.preloader) {
+      this.butterfly.scale.setScalar(PRELOADER_SCALE);
+      // Tilt the wing plane toward the camera so the 3D reads clearly
+      // (iridescent sheen + banking visible, not just a frontal flap).
+      this.butterfly.rotation.x = -0.32;
+      this.butterfly.rotation.z = 0.18;
+    }
 
     // Post: bloom flares the iridescent highlights.
     this.composer = new EffectComposer(this.renderer);
@@ -406,14 +412,18 @@ class Butterfly {
       }
     }
 
+    this.phase += dt * (2.2 * this.flapSpeed) * (1 + this.beat * 0.5);
+
     this.butterfly.position.copy(this.pos);
     // orientation: bank into turns (wings lie in the XZ plane, so roll is rotation.z)
+    if (this.preloader) {
+      // Keep the fixed 3/4 tilt from the constructor.
+      return;
+    }
     const bank = THREE.MathUtils.clamp(-this.vel.x * 0.30, -0.45, 0.45);
     this.butterfly.rotation.z = bank;
     this.butterfly.rotation.x = THREE.MathUtils.clamp(this.vel.y * 0.20, -0.25, 0.25);
     this.butterfly.rotation.y = 0;
-
-    this.phase += dt * (2.2 * this.flapSpeed) * (1 + this.beat * 0.5);
   }
 
   renderFrame() {

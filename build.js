@@ -18,12 +18,14 @@ const ASSETS = [
   { src: 'styles.css', out: 'styles.min.css', kind: 'CSS' },
   { src: 'app.js', out: 'app.min.js', kind: 'JS' },
   { src: 'butterfly3d.js', out: 'butterfly3d.min.js', kind: 'JS', module: true },
+  { src: 'demo-realistic.js', out: 'demo-realistic.min.js', kind: 'JS', module: true },
 ];
 
 // Text assets that should get .br/.gz sidecars (excluding images/fonts).
 const SIDECAR_FILES = [
   'index.html',
   '404.html',
+  'demo-realistic.html',
   'robots.txt',
   'fonts.css',
   ...ASSETS.map(a => a.out),
@@ -70,11 +72,14 @@ for (const asset of ASSETS) {
   totalOut += fs.statSync(asset.out).size;
 }
 
-// Sanity: the HTML must reference the produced artifacts.
-const html = fs.readFileSync('index.html', 'utf8');
+// Sanity: the pages must reference the produced artifacts.
+const PAGES = { 'styles.min.css': 'index.html', 'app.min.js': 'index.html', 'butterfly3d.min.js': 'index.html', 'demo-realistic.min.js': 'demo-realistic.html' };
 for (const asset of ASSETS) {
+  const page = PAGES[asset.out];
+  if (!page) continue;
+  const html = fs.readFileSync(page, 'utf8');
   if (!html.includes(asset.out)) {
-    console.error(`✗ index.html does not reference ${asset.out} — build incomplete.`);
+    console.error(`✗ ${page} does not reference ${asset.out} — build incomplete.`);
     process.exit(1);
   }
 }

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Realistic Morpho Butterfly — 3D Demo</title>
+<style>
+  :root { --cream: #f3ead9; --charcoal: #23201a; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; font-family: 'Georgia', 'Times New Roman', serif; }
+  body {
+    background:
+      radial-gradient(120% 90% at 50% 0%, #fff8ec 0%, #f3ead9 45%, #e4d5bd 100%);
+    color: var(--charcoal);
+  }
+  #demo { position: fixed; inset: 0; display: block; }
+
+  .ui {
+    position: fixed; inset: 0; pointer-events: none;
+    display: flex; flex-direction: column;
+    justify-content: space-between; padding: 1.4rem 1.6rem;
+  }
+  .ui h1 {
+    margin: 0; font-weight: 400; font-size: clamp(1rem, 2.4vw, 1.35rem);
+    letter-spacing: 0.04em; opacity: 0.85;
+  }
+  .ui h1 small { display: block; font-size: 0.72em; opacity: 0.55; margin-top: 0.2rem; font-style: italic; }
+
+  .hint {
+    font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase;
+    opacity: 0.55; text-align: center; padding-bottom: 0.2rem;
+  }
+
+  .controls {
+    pointer-events: auto; align-self: center; display: flex; gap: 0.5rem;
+    flex-wrap: wrap; justify-content: center; max-width: 560px;
+  }
+  .controls button {
+    font-family: inherit; font-size: 0.78rem; letter-spacing: 0.06em;
+    background: rgba(255,255,255,0.55); border: 1px solid rgba(35,32,26,0.25);
+    border-radius: 999px; padding: 0.5rem 1.05rem; cursor: pointer;
+    color: var(--charcoal); backdrop-filter: blur(6px); transition: all 0.2s ease;
+  }
+  .controls button:hover { background: #fff; transform: translateY(-1px); }
+  .controls button:active { transform: translateY(0); }
+
+  .loader {
+    position: fixed; inset: 0; display: grid; place-items: center;
+    background: var(--cream); z-index: 10; transition: opacity 0.6s ease;
+  }
+  .loader.hidden { opacity: 0; pointer-events: none; }
+  .loader span {
+    font-style: italic; opacity: 0.6; letter-spacing: 0.08em;
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { opacity: 0.2; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ui, .controls { display: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="demo" aria-label="Realistic 3D Morpho butterfly demo"></canvas>
+
+<div class="loader" id="loader"><span>warming up the butterfly…</span></div>
+
+<div class="ui">
+  <h1>Morpho Butterfly <small>procedural wings · iridescent physical material · perching behaviour</small></h1>
+  <div class="controls" aria-label="Demo controls">
+    <button id="btnPerch">Perch on flower</button>
+    <button id="btnFly">Release</button>
+    <button id="btnSlow">Slow-mo</button>
+    <button id="btnReset">Reset view</button>
+  </div>
+  <div class="hint">drag to orbit · scroll to zoom</div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "/vendor/three.module.min.js",
+    "three/addons/": "/vendor/addons/"
+  }
+}
+</script>
+<script type="module" src="/demo-realistic.min.js"></script>
+</body>
+</html>
