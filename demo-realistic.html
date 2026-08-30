@@ -85,5 +85,28 @@
 }
 </script>
 <script type="module" src="/demo-realistic.min.js"></script>
+<script>
+  // Surface module-load / unhandled errors on the loader overlay.
+  function showFatal(msg) {
+    var el = document.getElementById('loader');
+    if (!el) return;
+    el.classList.remove('hidden');
+    el.innerHTML = '<span style="color:#a04030;font-style:italic;max-width:32ch;text-align:center">' + msg + '</span>';
+  }
+  window.addEventListener('error', function (e) {
+    if (e && e.message) showFatal(String(e.message).slice(0, 120));
+  }, true);
+  window.addEventListener('unhandledrejection', function (e) {
+    var m = (e && e.reason && e.reason.message) ? e.reason.message : String(e.reason);
+    showFatal(String(m).slice(0, 120));
+  });
+  // If nothing has happened after 5s, dump a hint.
+  setTimeout(function () {
+    var el = document.getElementById('loader');
+    if (el && !el.classList.contains('hidden') && el.textContent.indexOf('Error') === -1) {
+      el.innerHTML = '<span style="color:#8a6a30;font-style:italic;max-width:32ch;text-align:center">Still booting… open the browser console (Ctrl+Shift+J / Cmd+Opt+J) to see any errors.</span>';
+    }
+  }, 5000);
+</script>
 </body>
 </html>

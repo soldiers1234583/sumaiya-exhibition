@@ -20,8 +20,10 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
 const REDUCE = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-/* ── 1. Wing shapes (Morpho silhouettes) ── */
-function forewingShape(right) {
+/* ── 1. Wing shapes (Morpho silhouettes) — defined once for the RIGHT wing;
+   the left wing is created by mirroring the geometry. THREE.Shape has no
+   scale() method, so we mirror vertices directly in buildWing. ── */
+function forewingShape() {
   const s = new THREE.Shape();
   s.moveTo(0, 0);
   s.quadraticCurveTo(0.42, -0.18, 0.92, -0.22);
@@ -30,10 +32,9 @@ function forewingShape(right) {
   s.quadraticCurveTo(1.18, 0.55, 0.84, 0.58);
   s.quadraticCurveTo(0.46, 0.62, 0.14, 0.48);
   s.quadraticCurveTo(0, 0.35, 0, 0);
-  if (!right) s.scale(-1, 1);
   return s;
 }
-function hindwingShape(right) {
+function hindwingShape() {
   const s = new THREE.Shape();
   s.moveTo(0, 0);
   s.quadraticCurveTo(0.38, -0.12, 0.80, -0.15);
@@ -42,7 +43,6 @@ function hindwingShape(right) {
   s.quadraticCurveTo(1.26, 0.74, 0.94, 0.88);
   s.quadraticCurveTo(0.56, 0.98, 0.22, 0.90);
   s.quadraticCurveTo(0, 0.78, 0, 0);
-  if (!right) s.scale(-1, 1);
   return s;
 }
 
@@ -149,7 +149,7 @@ function makeVenationTexture(kind) {
 }
 
 /* ── 3. Build a wing with camber ── */
-function buildWing(shape, side, forewing, frontMat, backMat, scale) {
+function buildWing(shape, side, forewing, frontMat, backMat, scale, mirror) {
   const geo = new THREE.ShapeGeometry(shape, 24);
   geo.rotateX(-Math.PI / 2);
 
@@ -162,6 +162,9 @@ function buildWing(shape, side, forewing, frontMat, backMat, scale) {
     const r = Math.abs(x) / maxX;
     const dish = r * r * 0.12; // deeper camber near the tip
     pos.setZ(i, z - dish * Math.sign(side));
+  }
+  if (mirror) {
+    for (let i = 0; i < pos.count; i++) pos.setX(i, -pos.getX(i));
   }
   pos.needsUpdate = true;
   geo.computeVertexNormals();
@@ -211,14 +214,14 @@ function buildButterfly() {
   const HW_SCALE = 0.18;
 
   // Right wings
-  const fwR = buildWing(forewingShape(true), 1, true, frontMat, backMat, FW_SCALE);
+  const fwR = buildWing(forewingShape(), 1, true, frontMat, backMat, FW_SCALE, false);
   fwR.position.z = 0.15;
-  const hwR = buildWing(hindwingShape(true), 1, false, frontMat, backMat, HW_SCALE);
+  const hwR = buildWing(hindwingShape(), 1, false, frontMat, backMat, HW_SCALE, false);
   hwR.position.z = -0.25;
-  // Left wings (mirror x scale)
-  const fwL = buildWing(forewingShape(false), -1, true, frontMat, backMat, FW_SCALE);
+  // Left wings (mirror geometry in buildWing)
+  const fwL = buildWing(forewingShape(), -1, true, frontMat, backMat, FW_SCALE, true);
   fwL.position.z = 0.15;
-  const hwL = buildWing(hindwingShape(false), -1, false, frontMat, backMat, HW_SCALE);
+  const hwL = buildWing(hindwingShape(), -1, false, frontMat, backMat, HW_SCALE, true);
   hwL.position.z = -0.25;
 
   const wingL = new THREE.Group();
@@ -363,9 +366,15 @@ function makeGround() {
   return mesh;
 }
 
-/* ── 7. Main scene setup ── */
+/* ── 7. Main scene setup (with error capture) ── */
 const canvas = document.getElementById('demo');
 const loader = document.getElementById('loader');
+
+// Fallback: hide the loader after 3 s regardless of any error.
+const hideTimer = setTimeout(() => { if (loader) loader.classList.add('hidden'); }, 3000);
+
+let initError = null;
+try {
 
 const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(DPR);
@@ -565,6 +574,7 @@ window.addEventListener('resize', () => {
 });
 
 /* ── 12. Fade out loader ── */
+clearTimeout(hideTimer);
 requestAnimationFrame(() => { loader.classList.add('hidden'); });
 
 /* ── 13. Start loop ── */
@@ -575,4 +585,14 @@ if (REDUCE) {
 } else {
   state.flyTimer = 8 + Math.random() * 4;
   requestAnimationFrame(loop);
+}
+
+} catch (err) {
+  initError = err;
+  console.error('Demo init failed:', err);
+  if (loader) {
+    loader.classList.remove('hidden');
+    loader.innerHTML = '<span style="color:#a04030;font-style:italic;max-width:30ch;text-align:center">' +
+      (err && err.message ? err.message : 'WebGL unavailable') + '</span>';
+  }
 }
