@@ -1,0 +1,84 @@
+name: Build & publish to public Pages site
+# Pushes only the built static site (no source, no history, no secrets) to the
+# gh-pages branch of the PUBLIC publisher repo, keeping the source private.
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout private source
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install build deps
+        run: npm install --no-audit --no-fund
+
+      - name: Build minified assets
+        run: node build.js
+
+      - name: Stage the publishable site
+        run: |
+          mkdir -p _site
+          # Static site payload only — exclude source, tooling, dev, build sidecars.
+          rsync -a --delete \
+            --exclude 'node_modules' \
+            --exclude '.git' \
+            --exclude '.gitignore' \
+            --exclude '.github' \
+            --exclude '.env*' \
+            --exclude '.vercel*' \
+            --exclude 'app.js' \
+            --exclude 'styles.css' \
+            --exclude 'build.js' \
+            --exclude 'minify.js' \
+            --exclude 'server.py' \
+            --exclude 'serve.sh' \
+            --exclude 'package.json' \
+            --exclude 'package-lock.json' \
+            --exclude '*.br' \
+            --exclude '*.gz' \
+            --exclude 'dev' \
+            --exclude 'legacy' \
+            --exclude 'plans' \
+            ./ _site/
+
+      - name: Configure SSH deploy key
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          PUBLISHER_REPO: soldiers1234583/sumaiya-site
+        run: |
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+          echo "host github.com" >> ~/.ssh/config
+          echo "  User git" >> ~/.ssh/config
+          echo "  IdentityFile ~/.ssh/deploy_key" >> ~/.ssh/config
+          echo "  IdentitiesOnly yes" >> ~/.ssh/config
+          chmod 700 ~/.ssh
+
+      - name: Publish to gh-pages
+        env:
+          PUBLISHER_REPO: soldiers1234583/sumaiya-site
+        run: |
+          cd _site
+          git init -q
+          git config user.name "sumaiya-site-build"
+          git config user.email "actions@github.com"
+          git checkout -q -b gh-pages
+          git add -A
+          git commit -q -m "Publish site from sumaiya-exhibition @ ${GITHUB_SHA::7}"
+          git remote add origin "git@github.com:${PUBLISHER_REPO}.git"
+          git push -q -f origin gh-pages 2>&1 | tail -20
