@@ -837,15 +837,20 @@ function launchConfetti() {
 /* ── Heart burst — delight erupts from the button when you dedicate ──
    GPU-composited (transform + opacity + scale only): hearts float up from the
    button and fade, with a springy pop on the button itself. Skipped under
-   prefers-reduced-motion. */
-function heartBurst(el) {
+   prefers-reduced-motion. `tier` (archived heart count) enriches the palette
+   so more-visited archives celebrate a little warmer. */
+function heartBurst(el, tier) {
   if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   if (typeof gsap === 'undefined') return;
   const rect = el.getBoundingClientRect();
   const cx = rect.left + rect.width / 2;
   const cy = rect.top + rect.height / 2;
-  const COLORS = ['#E5898B', '#F7C9C4', '#D4AF37', '#C7B8E8', '#C7E3D1', '#E8A86C'];
-  const N = 14;
+  // Every heart count unlocks another accent, capped.
+  const CORE = ['#E5898B', '#F7C9C4', '#D4AF37'];
+  const EXTRA = ['#C7B8E8', '#C7E3D1', '#E8A86C', '#9FAF90', '#F3B9D0'];
+  const tierIdx = Math.max(0, Math.min((tier | 0) - 1, EXTRA.length));
+  const COLORS = CORE.concat(EXTRA.slice(0, tierIdx));
+  const N = Math.min(26, 14 + tierIdx * 2); // a few more hearts as the count grows
   for (let i = 0; i < N; i++) {
     const h = document.createElement('span');
     h.setAttribute('aria-hidden', 'true');
@@ -886,6 +891,18 @@ function updateHeartsUI() {
   }
 }
 updateHeartsUI();
+
+// Gentle double-beat on the heart counter — retriggerable, so rapid clicks
+// don't restart it from zero mid-pulse (respects reduced motion).
+let _heartsPulseTO = null;
+function pulseHearts(el) {
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (!el || !el.classList) return;
+  if (!el.classList.contains('pulse')) {
+    el.classList.add('pulse');
+    _heartsPulseTO = setTimeout(() => el.classList.remove('pulse'), 700);
+  }
+}
 
 /* ── Guestbook — sign the archive (persisted locally) ── */
 const GUESTBOOK_KEY = 'sumaiya_guestbook';
@@ -966,8 +983,9 @@ if (guestbookForm) {
 const dedicateBtn = document.getElementById('dedicateBtn');
 if (dedicateBtn) {
   dedicateBtn.addEventListener('click', function() {
-    // Heart burst erupts from the button itself, then the full celebration.
-    heartBurst(this);
+    // Heart burst erupts from the button itself (palette tied to archived
+    // count), then the full celebration.
+    heartBurst(this, heartCount + 1);
     launchConfetti();
     this.classList.add('done');
     this.textContent = '♥ Dedicated';
@@ -976,6 +994,7 @@ if (dedicateBtn) {
     updateHeartsUI();
     const msg = document.getElementById('dedicateMsg');
     if (msg) msg.classList.add('show');
+    if (dedicateHearts) pulseHearts(dedicateHearts);
     showToast('Dedication filed', {
       type: 'success',
       description: 'You\u2019re heart #' + heartCount + ' in the archive. Permanently archived ♥',
@@ -1244,6 +1263,8 @@ mm.add({ motionOK: '(prefers-reduced-motion: no-preference)', motionReduce: REDU
               polaroid.classList.add('breathe');
               [polaroid, statement, dedication, btn].forEach(el => { if (el) { el.style.opacity = ''; el.style.transform = ''; el.style.transition = ''; } });
               washi.forEach(w => { w.style.opacity = ''; w.style.transform = ''; });
+              // Repeat visitor: their archived heart greets them with a nudge.
+              if (heartCount > 0 && dedicateHearts) pulseHearts(dedicateHearts);
             });
         },
       });
