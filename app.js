@@ -1394,7 +1394,7 @@ function startAmbient() {
   ambientGain.connect(analyser);
   analyser.connect(audioCtx.destination);
 
-  // Beat-pump loop: sets CSS vars for lighting + feeds Butterfly3D.
+  // Beat-pump loop: sets CSS vars for lighting.
   // Throttled (~10fps) + quantised so lighting only recalcs when a band
   // meaningfully changes — keeps the beat feel without a whole-tree style
   // recalc storm on every animation frame.
@@ -1418,10 +1418,9 @@ function startAmbient() {
     mid = Math.min(1, mid / 6);
     high = Math.min(1, high / (beatData.length - 10));
 
-    // Under reduced motion we still settle the butterfly's amplitude, but we
-    // stop writing the lighting variables so no flicker survives the CSS cut.
+    // Under reduced motion we stop writing the lighting variables so no
+    // flicker survives the CSS cut (the 3D Butterfly companion was removed).
     if (beatReduce) {
-      if (window.Butterfly3D && window.Butterfly3D.setBeat) window.Butterfly3D.setBeat(low);
       beatRAF = requestAnimationFrame(beatLoop);
       return;
     }
@@ -1439,7 +1438,6 @@ function startAmbient() {
     if (mid !== lastMid) { lastMid = mid; document.documentElement.style.setProperty('--beat-mid', String(mid)); }
     if (high !== lastHigh) { lastHigh = high; document.documentElement.style.setProperty('--beat-high', String(high)); }
     if (avgQ !== lastAvg) { lastAvg = avgQ; document.documentElement.style.setProperty('--beat-avg', String(avgQ)); }
-    if (window.Butterfly3D && window.Butterfly3D.setBeat) window.Butterfly3D.setBeat(low);
     beatRAF = requestAnimationFrame(beatLoop);
   }
   beatLoop();

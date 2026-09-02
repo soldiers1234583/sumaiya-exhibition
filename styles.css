@@ -97,22 +97,6 @@
   width: 238px;
   height: 199px;
 }
-/* 3D butterfly layer — overlays the SVG once WebGL boots */
-.preloader-butterfly3d {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  transition: opacity 0.7s ease;
-  pointer-events: none;
-  z-index: 3;
-}
-.preloader-butterfly3d.ready { opacity: 1; }
-/* Once 3D is live, fade the 2D SVG art out underneath it */
-.preloader-3d-ready .preloader-flight { opacity: 0; }
-.preloader-3d-ready .preloader-flight .mote { opacity: 0; }
-.preloader-3d-ready .preloader-flight svg { animation: none; }
 @keyframes preloaderEntrance {
   0%   { opacity: 0; transform: translateY(24px) scale(0.92); }
   70%  { opacity: 0.95; transform: translateY(-3px) scale(1.02); }
@@ -3453,17 +3437,6 @@ body.no-scroll { overflow: hidden; }
 /* ═══════════════════════════════════════════════════════════
    VISUAL OVERHAUL — three.js butterfly, aurora, lighting effects
    ═══════════════════════════════════════════════════════════ */
-
-/* ── 3D butterfly companion — full-viewport canvas layer ── */
-.butterfly3d {
-  position: fixed;
-  inset: 0;
-  z-index: 2;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 1.2s ease;
-}
-.butterfly3d.ready { opacity: 1; }
 
 /* tsParticles hero ambience */
 .hero-particles {

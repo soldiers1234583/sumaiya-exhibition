@@ -4,7 +4,6 @@
  *
  *   styles.css          → styles.min.css        (lightningcss)
  *   app.js              → app.min.js            (terser, classic)
- *   butterfly3d.js      → butterfly3d.min.js    (terser, ES module)
  *
  * After minifying, every text asset in the project also gets precompressed
  * `.br` and `.gz` sidecars so server.py can serve them with zero CPU cost.
@@ -17,23 +16,18 @@ const { execFileSync } = require('child_process');
 const ASSETS = [
   { src: 'styles.css', out: 'styles.min.css', kind: 'CSS' },
   { src: 'app.js', out: 'app.min.js', kind: 'JS' },
-  { src: 'butterfly3d.js', out: 'butterfly3d.min.js', kind: 'JS', module: true },
-  { src: 'model-viewer.js', out: 'model-viewer.min.js', kind: 'JS', module: true },
 ];
 
 // Text assets that should get .br/.gz sidecars (excluding images/fonts).
 const SIDECAR_FILES = [
   'index.html',
-  'model-viewer.html',
   '404.html',
   'robots.txt',
   'fonts.css',
   ...ASSETS.map(a => a.out),
   'vendor/bundle.js',
-  'vendor/three.module.min.js',
   'vendor/canvas-confetti.min.js',
   'vendor/tsparticles.bundle.min.js',
-  ...walk('vendor/addons').filter(f => f.endsWith('.js')),
 ];
 
 function walk(dir) {
@@ -73,7 +67,7 @@ for (const asset of ASSETS) {
 }
 
 // Sanity: the pages must reference the produced artifacts.
-const PAGES = { 'styles.min.css': 'index.html', 'app.min.js': 'index.html', 'butterfly3d.min.js': 'index.html', 'model-viewer.min.js': 'model-viewer.html' };
+const PAGES = { 'styles.min.css': 'index.html', 'app.min.js': 'index.html' };
 for (const asset of ASSETS) {
   const page = PAGES[asset.out];
   if (!page) continue;

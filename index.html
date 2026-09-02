@@ -75,17 +75,6 @@
 })();
 </script>
 
-<!-- ES module import map: three.js + addons resolve locally -->
-<script type="importmap">
-{
-  "imports": {
-    "three": "/vendor/three.module.min.js",
-    "three/addons/": "/vendor/addons/"
-  }
-}
-</script>
-<link rel="modulepreload" href="/vendor/three.module.min.js">
-
 <link rel="stylesheet" href="/styles.min.css?v=5">
 </head>
 <body>
@@ -94,9 +83,6 @@
 
 <!-- Site-wide paper grain -->
 <div class="noise-overlay" aria-hidden="true"></div>
-
-<!-- 3D butterfly companion (three.js) — full-viewport layer -->
-<canvas class="butterfly3d" id="butterfly3d" aria-hidden="true"></canvas>
 
 <a class="skip-link" href="#main">Skip to content</a>
 
@@ -273,8 +259,6 @@
       <ellipse class="butterfly-shadow" cx="60" cy="97" rx="15" ry="2.6" fill="rgba(26,26,26,0.10)"/>
     </svg>
     </div>
-    <!-- 3D butterfly layer — WebGL boots after first paint, fades in over the SVG -->
-    <canvas class="preloader-butterfly3d" id="preloaderButterfly3d" aria-hidden="true"></canvas>
   </div>
   <div class="preloader-text">warming the exhibit…</div>
   <div class="preloader-bar" aria-hidden="true"></div>
@@ -755,9 +739,6 @@
 </script>
 
 <script defer src="/app.min.js?v=5"></script>
-
-<!-- 3D butterfly companion — ES module (loads after import map) -->
-<script type="module" src="/butterfly3d.min.js?v=5"></script>
 
 </body>
 </html>
