@@ -1,0 +1,16 @@
+# Host/run-only files (not needed on Vercel)
+server.py
+serve.sh
+
+# Vercel does its own compression — the local .br/.gz sidecars are redundant
+*.br
+*.gz
+
+# Local/dev only
+dev/
+legacy/
+plans/
+.cache
+__pycache__/
+node_modules/
+*.log
