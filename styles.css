@@ -550,7 +550,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   letter-spacing: 0.02em;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.4s ease, transform 0.4s ease;
+  transition: opacity 0.4s var(--ease-out), transform 0.4s var(--ease-out);
   z-index: 1001;
 }
 .for-mehrima-tag.visible {
@@ -1035,7 +1035,13 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   align-items: center;
   gap: 0.5rem;
   opacity: 0;
-  animation: fadeUp 0.8s ease 1.5s forwards;
+  animation: fadeUp 0.8s var(--ease-out) 1.5s forwards;
+}
+/* This keyframe was previously undefined — without it the scroll prompt sat at
+   opacity:0 forever. The transform keeps the element's own translateX(-50%). */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translate(-50%, 14px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
 }
 .scroll-prompt span {
   font-family: var(--font-handwritten);
@@ -1751,7 +1757,8 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   height: 100%;
   border-radius: 2px;
   background: linear-gradient(90deg, var(--vintage-gold), rgba(212, 175, 55, 0.4));
-  transition: width 1s var(--ease-out);
+  transform-origin: left center;
+  transition: transform 1s var(--ease-out);
 }
 
 /* ═══════════════════════════════════════════
@@ -1903,7 +1910,8 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   border-radius: 999px;
   color: var(--rose-ink);
   background: transparent;
-  transition: color 0.25s var(--ease-out), box-shadow 0.25s var(--ease-out);
+  transition: color 0.25s var(--ease-out), box-shadow 0.25s var(--ease-out),
+              transform 0.16s var(--ease-out);
   position: relative;
   overflow: hidden;
 }
@@ -2099,6 +2107,13 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   .scroll-prompt { animation: none; }
   .art-card:hover, .bento-card:hover, .polaroid-main:hover { transform: none; }
   .dedicate-btn:hover { transform: none; }
+  /* Reduced ≠ zero: re-assert the comprehension fades the blanket just killed.
+     These aid reading/state without movement, so they survive reduced motion. */
+  .reveal, .reason-text, .toast, .toast-progress,
+  .lightbox, .lightbox-art, .preloader-motif, .preloader-text, .preloader-bar {
+    transition-duration: 0.15s !important;
+  }
+  .reveal { opacity: 1; transform: none; transition: opacity 0.15s ease !important; }
   /* Tier 3: keep micro-interactions but shorten */
   .btn-interactive { transition-duration: 0.1s; }
   .bento-card { transition-duration: 0.1s; }
@@ -3239,6 +3254,18 @@ body.no-scroll { overflow: hidden; }
   }
   .art-examine { opacity: 1; transform: translateY(0); }
   .crochet-reveal { opacity: 1; transform: translateY(0); }
+  /* Neutralise hover-only feedback that would otherwise "stick" on tap:
+     upward lifts, hover nav nudges, stacked-polaroid fan, card sheen. */
+  .btn-interactive:hover, .dedicate-btn:hover, .bento-card:hover,
+  .art-card:hover, .polaroid-main:hover { transform: none; }
+  .lightbox-nav--prev:hover { transform: translateY(-50%); }
+  .lightbox-nav--next:hover { transform: translateY(-50%); }
+  .polaroid-stack:hover .polaroid-back--1,
+  .polaroid-stack:hover .polaroid-back--2 { transform: none; }
+  .bento-card:hover::after { transform: none; }
+  /* Toast close must be visible without hover on touch. */
+  .toast:hover .toast-close { opacity: 1; }
+  .toast-close { opacity: 1; }
 }
 
 /* ── Landscape mobile ── */
@@ -3395,10 +3422,11 @@ body.no-scroll { overflow: hidden; }
   position: absolute;
   bottom: 0;
   left: 0;
+  width: 100%;
   height: 2px;
   background: linear-gradient(90deg, var(--vintage-gold), rgba(212,175,55,0.3));
   border-radius: 0 0 8px 8px;
-  transition: width linear;
+  transform-origin: left center;
 }
 
 /* Toast accent stripe */
@@ -3461,7 +3489,6 @@ body.no-scroll { overflow: hidden; }
   z-index: 0;
   pointer-events: none;
   overflow: hidden;
-  filter: blur(60px);
   opacity: 0.75;
 }
 .aurora::before,
@@ -3469,15 +3496,17 @@ body.no-scroll { overflow: hidden; }
   content: '';
   position: absolute;
   border-radius: 50%;
-  filter: blur(40px);
   mix-blend-mode: screen;
 }
+/* The soft glow is baked into the gradient stops (no runtime blur filter) —
+   blur(40-60px) on full-screen blobs forces a viewport re-raster every frame
+   on phone GPUs. Wider, lower-alpha falloff reads identical once composited. */
 .aurora::before {
   width: 55vmax;
   height: 55vmax;
   left: -12vmax;
   top: -14vmax;
-  background: radial-gradient(circle at 30% 30%, rgba(229, 137, 139, 0.45), rgba(247, 201, 196, 0.18) 45%, transparent 70%);
+  background: radial-gradient(circle at 30% 30%, rgba(229, 137, 139, 0.40), rgba(229, 137, 139, 0.20) 22%, rgba(247, 201, 196, 0.10) 48%, rgba(247, 201, 196, 0.0) 72%, transparent 78%);
   animation: auroraDrift 16s ease-in-out infinite alternate;
 }
 .aurora::after {
@@ -3485,7 +3514,7 @@ body.no-scroll { overflow: hidden; }
   height: 48vmax;
   right: -10vmax;
   bottom: -16vmax;
-  background: radial-gradient(circle at 60% 40%, rgba(212, 175, 55, 0.32), rgba(229, 137, 139, 0.16) 50%, transparent 72%);
+  background: radial-gradient(circle at 60% 40%, rgba(212, 175, 55, 0.30), rgba(212, 175, 55, 0.16) 25%, rgba(229, 137, 139, 0.08) 52%, rgba(229, 137, 139, 0.0) 74%, transparent 80%);
   animation: auroraDrift 20s ease-in-out infinite alternate-reverse;
 }
 @keyframes auroraDrift {
@@ -3519,6 +3548,11 @@ body.no-scroll { overflow: hidden; }
   55%  { background-position: -30% 0; }
   100% { background-position: -30% 0; }
 }
+
+/* Decorative infinite animations are paused when scrolled out of view (a
+   shared IntersectionObserver in app.js toggles this). Being offscreen, none
+   of the motion is lost — you only stop paying for it while reading. */
+.motion-paused { animation-play-state: paused !important; }
 
 /* ── Border Glow — finale card rotating conic frame ── */
 .finale-card { isolation: isolate; }
@@ -3556,7 +3590,7 @@ body.no-scroll { overflow: hidden; }
   z-index: 2;
   background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.45) 48%, transparent 66%);
   transform: translateX(-120%);
-  transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.7s var(--ease-out);
   pointer-events: none;
 }
 .bento-card:hover::after { transform: translateX(120%); }

@@ -53,12 +53,16 @@ controls.update();
 
 // Load the model
 const texLoader = new THREE.TextureLoader();
-const mapTex = texLoader.load('models/textures/DIFFUSE_Morpho_didius_Male_Dos_MHNT.jpg');
-const alphaTex = texLoader.load('models/textures/ALPHA_OR_OPACITY_MASK_Morpho_didius_Male_Dos_MHNT.jpg');
-const normalTex = texLoader.load('models/textures/NORMAL_MAP_Morpho_didius_Male_Dos_MHNT_NRM.jpg');
+const mapTex = texLoader.load('models/textures/DIFFUSE-Morpho-didius-sq.webp', undefined, undefined, () => texLoader.load('models/textures/DIFFUSE_Morpho_didius_Male_Dos_MHNT.jpg'));
+const alphaTex = texLoader.load('models/textures/ALPHA-Morpho-didius-sq.webp', undefined, undefined, () => texLoader.load('models/textures/ALPHA_OR_OPACITY_MASK_Morpho_didius_Male_Dos_MHNT.jpg'));
+const normalTex = texLoader.load('models/textures/NORMAL-Morpho-didius-sq.webp', undefined, undefined, () => texLoader.load('models/textures/NORMAL_MAP_Morpho_didius_Male_Dos_MHNT_NRM.jpg'));
 mapTex.colorSpace = THREE.SRGBColorSpace;
 
 let model, mixer, clock = new THREE.Clock();
+let paused = false;
+let animAction = null;
+const SPEEDS = [0.5, 1, 1.9, 3, 5];
+let speedIdx = 2;
 
 async function loadModel() {
   try {
@@ -132,10 +136,6 @@ if (!REDUCE) loop();
 else renderer.render(scene, camera);
 
 // Controls
-let paused = false;
-let animAction = null;
-const SPEEDS = [0.5, 1, 1.9, 3, 5];
-let speedIdx = 2;
 document.getElementById('btnSpeed').addEventListener('click', () => {
   speedIdx = (speedIdx + 1) % SPEEDS.length;
   const s = SPEEDS[speedIdx];

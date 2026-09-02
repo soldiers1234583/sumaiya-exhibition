@@ -106,7 +106,12 @@ class Handler(SimpleHTTPRequestHandler):
     def end_headers(self):
         path = urlparse(self.path).path
         ext = os.path.splitext(path)[1].lower()
-        if ext in IMMUTABLE:
+        # JS/CSS are cache-busted with a ?v=N query (e.g. app.min.js?v=5), so a
+        # bumped version is a genuinely new URL — safe to cache immutable. Plain
+        # HTML revalidates so edits show immediately.
+        qs = urlparse(self.path).query
+        versioned = ext in (".js", ".css") and ("v=" in qs or "version=" in qs)
+        if ext in IMMUTABLE or versioned:
             self.send_header("Cache-Control", "public, max-age=31536000, immutable")
         else:
             self.send_header("Cache-Control", "no-cache, must-revalidate")
@@ -146,6 +151,18 @@ class Handler(SimpleHTTPRequestHandler):
         ctype = self.guess_type(real_path)
         length = fs.st_size
 
+        # Strong validator — captures the exact byte content so rebuilds that
+        # leave bytes unchanged don't bust caches (JS/CSS are ?v= versioned).
+        etag = '"%x-%x"' % (int(fs.st_mtime), fs.st_size)
+        inm = self.headers.get("If-None-Match")
+        if inm and etag in inm:
+            f.close()
+            self.send_response(304)
+            self.send_header("ETag", etag)
+            self.send_header("Last-Modified", self.date_time_string(fs.st_mtime))
+            self.end_headers()
+            return None
+
         # 304 Not Modified
         ims = self.headers.get("If-Modified-Since")
         if ims:
@@ -157,6 +174,7 @@ class Handler(SimpleHTTPRequestHandler):
                 if last_mod.timestamp() <= if_modified.timestamp():
                     f.close()
                     self.send_response(304)
+                    self.send_header("ETag", etag)
                     self.send_header("Last-Modified", self.date_time_string(fs.st_mtime))
                     self.end_headers()
                     return None
@@ -187,6 +205,7 @@ class Handler(SimpleHTTPRequestHandler):
                 self.send_header("Content-Encoding", enc)
                 self.send_header("Content-Length", str(len(body)))
                 self.send_header("Last-Modified", self.date_time_string(fs.st_mtime))
+                self.send_header("ETag", etag)
                 self.send_header("Vary", "Accept-Encoding")
                 self.end_headers()
                 return io.BytesIO(body)
@@ -208,6 +227,7 @@ class Handler(SimpleHTTPRequestHandler):
                 self.send_header("Content-Encoding", enc)
                 self.send_header("Content-Length", str(len(body)))
                 self.send_header("Last-Modified", self.date_time_string(fs.st_mtime))
+                self.send_header("ETag", etag)
                 self.send_header("Vary", "Accept-Encoding")
                 self.end_headers()
                 return io.BytesIO(body)
@@ -216,6 +236,7 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header("Content-type", ctype)
             self.send_header("Content-Length", str(length))
             self.send_header("Last-Modified", self.date_time_string(fs.st_mtime))
+            self.send_header("ETag", etag)
             self.send_header("Vary", "Accept-Encoding")
             self.end_headers()
             return io.BytesIO(raw)

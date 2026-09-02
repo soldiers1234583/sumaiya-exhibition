@@ -58,7 +58,8 @@ function showToast(title, opts) {
 
   const progress = document.createElement('div');
   progress.className = 'toast-progress';
-  progress.style.width = '100%';
+  // ScaleX from 1 → 0 (composited) instead of animating width (layout+paint).
+  progress.style.transformOrigin = 'left center';
 
   el.appendChild(icon);
   el.appendChild(body);
@@ -77,8 +78,8 @@ function showToast(title, opts) {
   // Progress bar animation
   if (duration < Infinity) {
     requestAnimationFrame(function() {
-      progress.style.transitionDuration = duration + 'ms';
-      progress.style.width = '0%';
+      progress.style.transition = 'transform ' + duration + 'ms linear';
+      progress.style.transform = 'scaleX(0)';
     });
   }
 
@@ -96,22 +97,30 @@ function showToast(title, opts) {
   // Pause on hover
   el.addEventListener('mouseenter', function() {
     if (timer) clearTimeout(timer);
-    progress.style.transitionDuration = '0ms';
+    progress.style.transition = 'none';
   });
   el.addEventListener('mouseleave', function() {
     if (duration < Infinity) {
-      const currentWidth = parseFloat(getComputedStyle(progress).width);
-      const totalWidth = el.offsetWidth - 3;
-      const remaining = (currentWidth / totalWidth) * duration;
+      const remaining = getRemainingPct(progress) * duration;
       if (remaining > 0) {
-        progress.style.transitionDuration = remaining + 'ms';
-        progress.style.width = '0%';
+        progress.style.transition = 'transform ' + remaining + 'ms linear';
+        progress.style.transform = 'scaleX(0)';
         timer = setTimeout(function() { dismissToast(id); }, remaining);
       }
     }
   });
 
   return id;
+}
+
+// Fraction of toast progress still left (1 → 0), read from the live transform.
+function getRemainingPct(progress) {
+  const t = getComputedStyle(progress).transform;
+  if (!t || t === 'none') return 1;
+  // matrix(a, b, c, d, e, f) → scaleX is 'a'.
+  const m = t.match(/matrix\(([^,]+)/);
+  const sx = m ? parseFloat(m[1]) : 1;
+  return Math.max(0, Math.min(1, sx));
 }
 
 function dismissToast(id) {
@@ -234,6 +243,16 @@ let isFlipped = false;
 let prevSlide = 0;
 let carouselScrollTicking = false;
 let scriptedScroll = false;
+// Cached card metrics — measuring offsetLeft/offsetWidth on all 18 cards every
+// scroll frame forces layout. Refresh on resize / content-visibility re-sync.
+let cardMetrics = [];
+function refreshCardMetrics() {
+  cardMetrics = carouselCards.map((card) => ({
+    left: card.offsetLeft,
+    w: card.offsetWidth,
+  }));
+}
+refreshCardMetrics();
 
 function updateActiveUI(index) {
   currentSlide = index;
@@ -258,10 +277,14 @@ function spinActiveCard() {
   if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const activeCard = carouselCards[currentSlide];
   if (!activeCard) return;
-  activeCard.classList.remove('spinning');
-  void activeCard.offsetWidth;
+  // Don't restart the flip mid-swipe-dwell — a rapid direction change would
+  // restart the keyframe from zero. Guard so it simply keeps the current spin.
+  if (activeCard._spinT) return;
   activeCard.classList.add('spinning');
-  setTimeout(() => activeCard.classList.remove('spinning'), 700);
+  activeCard._spinT = setTimeout(() => {
+    activeCard.classList.remove('spinning');
+    activeCard._spinT = null;
+  }, 700);
 }
 
 function goToSlide(index, { spin = true, smooth = true, focus = false } = {}) {
@@ -272,9 +295,10 @@ function goToSlide(index, { spin = true, smooth = true, focus = false } = {}) {
   const vpWidth = carouselViewport.clientWidth;
   const left = target.offsetLeft - (vpWidth - target.offsetWidth) / 2;
   scriptedScroll = true;
-  carouselViewport.scrollTo({ left: Math.max(0, left), behavior: smooth ? 'smooth' : 'auto' });
+  // Respect reduced motion: snap instead of smooth-scrolling.
+  carouselViewport.scrollTo({ left: Math.max(0, left), behavior: smooth && motionOK ? 'smooth' : 'auto' });
   updateActiveUI(idx);
-  if (spin) spinActiveCard();
+  if (spin && motionOK) spinActiveCard();
   if (focus) carouselCards[idx].focus({ preventScroll: true });
   setTimeout(() => { scriptedScroll = false; }, 800);
 }
@@ -325,8 +349,8 @@ function activeIndexFromScroll() {
   const vpCenter = carouselViewport.scrollLeft + carouselViewport.clientWidth / 2;
   let best = 0;
   let bestDist = Infinity;
-  carouselCards.forEach((card, i) => {
-    const center = card.offsetLeft + card.offsetWidth / 2;
+  cardMetrics.forEach((m, i) => {
+    const center = m.left + m.w / 2;
     const dist = Math.abs(center - vpCenter);
     if (dist < bestDist) { bestDist = dist; best = i; }
   });
@@ -345,19 +369,21 @@ carouselViewport.addEventListener('scroll', () => {
     }
     carouselScrollTicking = false;
   });
-});
+}, { passive: true });
 
 // Recompute on resize + IntersectionObserver (handles content-visibility)
 let resizeT;
 window.addEventListener('resize', () => {
   clearTimeout(resizeT);
   resizeT = setTimeout(() => {
+    refreshCardMetrics();
     goToSlide(currentSlide, { spin: false, smooth: false });
   }, 120);
 });
 
 // When the carousel becomes visible (content-visibility deferred), re-sync
 const resizeObserver = new ResizeObserver(() => {
+  refreshCardMetrics();
   const target = carouselCards[currentSlide];
   if (target) {
     carouselViewport.scrollLeft = Math.max(0, target.offsetLeft - (carouselViewport.clientWidth - target.offsetWidth) / 2);
@@ -561,18 +587,27 @@ const REASONS = [
   "reason #50 — the 505 to our nostalgia, every single time",
 ];
 let lastReason = -1;
+let reasonSwapTO = null;
+let reasonPulseTO = null;
 function flipReason() {
+  if (!reasonBtn || !reasonText) return;
   let i;
   do { i = Math.floor(Math.random() * REASONS.length); } while (i === lastReason);
   lastReason = i;
+  // Cancel any in-flight swap so rapid clicks can't race two timeouts and let
+  // the text teleport mid-fade. The swap class is re-applied for a clean enter.
+  if (reasonSwapTO) clearTimeout(reasonSwapTO);
+  if (reasonPulseTO) clearTimeout(reasonPulseTO);
+  reasonText.classList.remove('swap');
+  reasonText.textContent = REASONS[i];
+  // Force a reflow ONCE so the next 'swap' class restarts the transition cleanly.
+  void reasonText.offsetWidth;
   reasonText.classList.add('swap');
-  setTimeout(() => {
-    reasonText.textContent = REASONS[i];
-    reasonText.classList.remove('swap');
-  }, 200);
+  reasonSwapTO = setTimeout(() => reasonText.classList.remove('swap'), 240);
   reasonBtn.classList.remove('pulsing');
   void reasonBtn.offsetWidth;
   reasonBtn.classList.add('pulsing');
+  reasonPulseTO = setTimeout(() => reasonBtn.classList.remove('pulsing'), 700);
 }
 if (reasonBtn && reasonText) {
   reasonBtn.addEventListener('click', flipReason);
@@ -672,6 +707,11 @@ const beamTrack = document.getElementById('beamTrack');
 const beamHead = document.getElementById('beamHead');
 const reasonsWrap = document.querySelector('.reasons-wrap');
 if (beamTrack && beamHead && reasonsWrap && !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+  // Cache track height so the scrub writes a transform, not `top` (layout).
+  let beamH = 0;
+  const refreshBeamH = () => { beamH = beamTrack.clientHeight || 0; };
+  refreshBeamH();
+  new ResizeObserver(refreshBeamH).observe(beamTrack);
   ScrollTrigger.create({
     trigger: reasonsWrap,
     start: 'top 75%',
@@ -680,7 +720,7 @@ if (beamTrack && beamHead && reasonsWrap && !(window.matchMedia && window.matchM
     onUpdate: function(self) {
       const p = Math.max(0, Math.min(1, self.progress));
       beamTrack.style.clipPath = 'inset(0 0 ' + (100 - p * 100) + '% 0)';
-      beamHead.style.top = (p * 100) + '%';
+      beamHead.style.transform = 'translate(-50%, calc(-50% + ' + (p * beamH) + 'px))';
     }
   });
 }
@@ -689,6 +729,13 @@ if (beamTrack && beamHead && reasonsWrap && !(window.matchMedia && window.matchM
 (function sparkleTrail() {
   if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const isCoarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  // Reactive reduced-motion flag so toggling the OS setting mid-session stops
+  // the trail without a reload (a one-shot check here would go stale).
+  const reduceMQ = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+  let reduceM = reduceMQ ? reduceMQ.matches : false;
+  if (reduceMQ && reduceMQ.addEventListener) {
+    reduceMQ.addEventListener('change', (e) => { reduceM = e.matches; });
+  }
   const SPARKLE_COLORS = ['#E5898B', '#C7B8E8', '#D4AF37', '#9FAF90'];
 
   const canvas = document.createElement('canvas');
@@ -697,7 +744,7 @@ if (beamTrack && beamHead && reasonsWrap && !(window.matchMedia && window.matchM
   document.body.appendChild(canvas);
   const ctx = canvas.getContext('2d');
 
-  const DPR = Math.min(window.devicePixelRatio || 1, 2);
+  const DPR = Math.min(window.devicePixelRatio || 1, isCoarse ? 1.5 : 2);
   let W = 0, H = 0;
   function resize() {
     W = window.innerWidth; H = window.innerHeight;
@@ -709,7 +756,10 @@ if (beamTrack && beamHead && reasonsWrap && !(window.matchMedia && window.matchM
   window.addEventListener('resize', resize, { passive: true });
 
   let particles = [];
-  const MAX = isCoarse ? 40 : 90;
+  // Touch: far fewer particles + heavier throttle so the trail doesn't compete
+  // with scroll for main-thread time. Desktop keeps the denser trail.
+  const MAX = isCoarse ? 18 : 90;
+  const SPAWN_MS = isCoarse ? 60 : 32;
 
   function spawn(x, y) {
     particles.push({
@@ -743,9 +793,10 @@ if (beamTrack && beamHead && reasonsWrap && !(window.matchMedia && window.matchM
   let throttle = false;
   const evt = isCoarse ? 'touchmove' : 'mousemove';
   document.addEventListener(evt, (e) => {
+    if (reduceM) return;
     if (throttle) return;
     throttle = true;
-    setTimeout(() => { throttle = false; }, 32);
+    setTimeout(() => { throttle = false; }, SPAWN_MS);
     spawn(e.clientX, e.clientY);
     if (!particles.length) requestAnimationFrame(frame);
   }, { passive: true });
@@ -936,7 +987,7 @@ mm.add({ motionOK: '(prefers-reduced-motion: no-preference)', motionReduce: REDU
       targets: '.hero-badge',
       opacity: [0, 1],
       translateY: [15, 0],
-      duration: 450,
+      duration: 600,
       easing: 'cubicBezier(0.16, 1, 0.3, 1)',
     });
 
@@ -946,8 +997,8 @@ mm.add({ motionOK: '(prefers-reduced-motion: no-preference)', motionReduce: REDU
       opacity: [0, 1],
       translateY: [15, 0],
       rotateX: [-30, 0],
-      duration: 560,
-      delay: anime.stagger(32, { start: 300 }),
+      duration: 780,
+      delay: anime.stagger(36, { start: 300 }),
       easing: 'cubicBezier(0.16, 1, 0.3, 1)',
     }, '-=200');
 
@@ -956,7 +1007,7 @@ mm.add({ motionOK: '(prefers-reduced-motion: no-preference)', motionReduce: REDU
       targets: '.hero-subtitle',
       opacity: [0, 1],
       translateY: [10, 0],
-      duration: 450,
+      duration: 600,
       easing: 'cubicBezier(0.16, 1, 0.3, 1)',
       complete: function() {
         const hl = document.querySelector('.hero-highlight');
@@ -989,25 +1040,34 @@ mm.add({ motionOK: '(prefers-reduced-motion: no-preference)', motionReduce: REDU
 
   /* ── TIER 1: Gallery carousel — staggered per-card rise-in (GSAP) ──
      Each photo card rises in sequence with a blur-clear, like hanging
-     frames one by one in the exhibition. */
+     frames one by one in the exhibition. The blur (filter raster work) is
+     only applied to the handful of cards actually in view — off-screen
+     cards resolve instantly so we never blur 18 frames at once. */
   if (ok) {
     const carouselEl = document.getElementById('galleryCarousel');
     const entranceCards = gsap.utils.toArray('.art-card');
     if (carouselEl && entranceCards.length) {
+      const blurInCards = entranceCards.filter(card => {
+        const r = card.getBoundingClientRect();
+        const vp = carouselViewport.getBoundingClientRect();
+        return r.right > vp.left && r.left < vp.right;
+      });
+      const restCards = entranceCards.filter(card => !blurInCards.includes(card));
       gsap.set(carouselEl, { opacity: 0, y: 30 });
-      gsap.set(entranceCards, { opacity: 0, y: 24, filter: 'blur(6px)' });
+      gsap.set(blurInCards, { opacity: 0, y: 24, filter: 'blur(6px)' });
+      gsap.set(restCards, { opacity: 1, y: 0, filter: 'blur(0px)' });
       ScrollTrigger.create({
         trigger: carouselEl, start: 'top 85%', once: true,
         onEnter: () => {
-          gsap.to(entranceCards, {
+          gsap.to(blurInCards, {
             opacity: 1, y: 0, filter: 'blur(0px)',
-            duration: 0.7,
+            duration: 1.1,
             ease: 'power3.out',
-            stagger: { each: 0.07, from: 'center' },
+            stagger: { each: 0.09, from: 'center' },
             onComplete: () => {
               gsap.to(carouselEl, { opacity: 1, y: 0, duration: 0.3 });
               carouselEl.style.filter = '';
-              carouselCards.forEach(c => c.querySelectorAll('.skeleton').forEach(s => s.classList.add('skel-done')));
+              entranceCards.forEach(c => c.querySelectorAll('.skeleton').forEach(s => s.classList.add('skel-done')));
             }
           });
         },
@@ -1178,8 +1238,11 @@ mm.add({ motionOK: '(prefers-reduced-motion: no-preference)', motionReduce: REDU
           targets: batch,
           opacity: [0, 1],
           translateY: [15, 0],
-          duration: 500,
-          delay: anime.stagger(50),
+          // Cinematic pacing — long enough to be savoured, short enough to stay
+          // responsive. Only applied once 60fps is confirmed (falls to instant
+          // under reduced motion).
+          duration: 1100,
+          delay: anime.stagger(70),
           easing: 'cubicBezier(0.16, 1, 0.3, 1)',
           complete: function() { batch.forEach(el => { el.style.transform = ''; el.style.opacity = '1'; el.classList.add('revealed'); el.querySelectorAll('.skeleton').forEach(s => s.classList.add('skel-done')); }); }
         });
@@ -1200,12 +1263,26 @@ const sections = ['hero', 'gallery', 'crochet', 'fandoms', 'reasons', 'finale'].
 let scrollTicking = false;
 let lastScrollY = 0;
 
+// Cached document height — read via ResizeObserver so scroll handlers never
+// force a synchronous layout per frame. Defaults to a live read on first call.
+let _docHeight = 0;
+function docHeight() {
+  if (!_docHeight) _docHeight = document.body.scrollHeight;
+  return _docHeight;
+}
+new ResizeObserver((entries) => {
+  for (const en of entries) {
+    if (en.target === document.body) _docHeight = en.contentRect.height;
+  }
+}).observe(document.body);
+
 // Show/hide nav — visible by default; hide on scroll-down, reveal on scroll-up
 const forMehrimaTag = document.getElementById('forMehrimaTag');
 window.addEventListener('scroll', () => {
   if (!scrollTicking) {
     requestAnimationFrame(() => {
-      const scrollY = (document.documentElement ? document.documentElement.scrollTop : 0) || (document.body ? document.body.scrollTop : 0) || 0;
+      // window.scrollY is cheap (no forced layout) vs documentElement.scrollTop.
+      const scrollY = window.scrollY || 0;
       const dir = scrollY - lastScrollY;
       if (scrollY < 120) {
         nav.classList.remove('hidden');
@@ -1216,7 +1293,8 @@ window.addEventListener('scroll', () => {
       }
       // "for Mehrima" tag: show once the hero has scrolled away, fade out near finale
       if (forMehrimaTag) {
-        const nearBottom = window.innerHeight + scrollY >= (document.body.scrollHeight - 500);
+        // Cache scrollHeight via ResizeObserver instead of reading it per frame.
+        const nearBottom = window.innerHeight + scrollY >= (docHeight() - 500);
         forMehrimaTag.classList.toggle('visible', scrollY > window.innerHeight * 0.85 && !nearBottom);
       }
       lastScrollY = scrollY;
@@ -1252,12 +1330,15 @@ const f1Card = document.querySelector('.bento-card--f1');
 if (telemetry && f1Card) {
   for (let i = 0; i < 30; i++) {
     const bar = document.createElement('span');
-    bar.style.height = Math.random() * 30 + 5 + 'px';
+    bar.style.height = '40px';
+    bar.style.transform = 'scaleY(' + ((Math.random() * 30 + 5) / 40) + ')';
+    bar.style.transformOrigin = 'bottom';
     telemetry.appendChild(bar);
   }
   f1Card.addEventListener('mouseenter', () => {
     telemetry.querySelectorAll('span').forEach(bar => {
-      gsap.to(bar, { height: Math.random() * 35 + 5, duration: 0.3, ease: 'power2.out', overwrite: true });
+      // Animate scaleY (composited) instead of height (layout+paint per frame).
+      gsap.to(bar, { scaleY: (Math.random() * 35 + 5) / 40, duration: 0.3, ease: 'power2.out', overwrite: true });
     });
   });
 }
@@ -1267,10 +1348,12 @@ if (telemetry && f1Card) {
    ═══════════════════════════════════════════ */
 document.querySelectorAll('.vibe-fill').forEach(fill => {
   const w = fill.dataset.width;
-  gsap.set(fill, { width: '0%' });
+  // Set the target width statically; animate scaleX (composited) 0 → 1.
+  fill.style.width = w + '%';
+  gsap.set(fill, { scaleX: 0, transformOrigin: 'left center' });
   ScrollTrigger.create({
     trigger: fill, start: 'top 90%', once: true,
-    onEnter: () => { gsap.to(fill, { width: w + '%', duration: 0.8, ease: 'power2.out' }); },
+    onEnter: () => { gsap.to(fill, { scaleX: 1, duration: 0.8, ease: 'power2.out' }); },
   });
 });
 
@@ -1311,7 +1394,13 @@ function startAmbient() {
   ambientGain.connect(analyser);
   analyser.connect(audioCtx.destination);
 
-  // Beat-pump loop: sets CSS vars for lighting + feeds Butterfly3D
+  // Beat-pump loop: sets CSS vars for lighting + feeds Butterfly3D.
+  // Throttled (~10fps) + quantised so lighting only recalcs when a band
+  // meaningfully changes — keeps the beat feel without a whole-tree style
+  // recalc storm on every animation frame.
+  let beatFrame = 0;
+  let lastLow = -1, lastMid = -1, lastHigh = -1, lastAvg = -1;
+  const beatReduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   function beatLoop() {
     if (!analyser || !isPlaying) { beatRAF = null; return; }
     analyser.getByteFrequencyData(beatData);
@@ -1328,10 +1417,28 @@ function startAmbient() {
     low = Math.min(1, low / 4);
     mid = Math.min(1, mid / 6);
     high = Math.min(1, high / (beatData.length - 10));
-    document.documentElement.style.setProperty('--beat-low', String(low));
-    document.documentElement.style.setProperty('--beat-mid', String(mid));
-    document.documentElement.style.setProperty('--beat-high', String(high));
-    document.documentElement.style.setProperty('--beat-avg', String(avg));
+
+    // Under reduced motion we still settle the butterfly's amplitude, but we
+    // stop writing the lighting variables so no flicker survives the CSS cut.
+    if (beatReduce) {
+      if (window.Butterfly3D && window.Butterfly3D.setBeat) window.Butterfly3D.setBeat(low);
+      beatRAF = requestAnimationFrame(beatLoop);
+      return;
+    }
+
+    // Throttle CSS-var writes to ~every 6th frame (~10fps) and quantise to
+    // 0.05 steps. Write only when a band actually changed.
+    if ((beatFrame++ % 6) !== 0) {
+      beatRAF = requestAnimationFrame(beatLoop);
+      return;
+    }
+    const q = (v) => Math.round(v * 20) / 20;
+    low = q(low); mid = q(mid); high = q(high);
+    const avgQ = q(avg);
+    if (low !== lastLow) { lastLow = low; document.documentElement.style.setProperty('--beat-low', String(low)); }
+    if (mid !== lastMid) { lastMid = mid; document.documentElement.style.setProperty('--beat-mid', String(mid)); }
+    if (high !== lastHigh) { lastHigh = high; document.documentElement.style.setProperty('--beat-high', String(high)); }
+    if (avgQ !== lastAvg) { lastAvg = avgQ; document.documentElement.style.setProperty('--beat-avg', String(avgQ)); }
     if (window.Butterfly3D && window.Butterfly3D.setBeat) window.Butterfly3D.setBeat(low);
     beatRAF = requestAnimationFrame(beatLoop);
   }
@@ -1512,14 +1619,24 @@ if (motionOK) {
     var MAG_STRENGTH = 0.5;
     var MAG_MAX = 20;
     var magBtnCX = 0, magBtnCY = 0;
+    var magHovering = false;
     function updateMagCenter() {
       var r = dedicateBtn.getBoundingClientRect();
       magBtnCX = r.left + r.width / 2;
       magBtnCY = r.top + r.height / 2;
     }
-    dedicateBtn.addEventListener('mouseenter', updateMagCenter);
-    document.addEventListener('scroll', updateMagCenter, { passive: true });
+    dedicateBtn.addEventListener('mouseenter', () => {
+      magHovering = true;
+      updateMagCenter();
+    });
+    dedicateBtn.addEventListener('mouseleave', () => { magHovering = false; });
     window.addEventListener('resize', updateMagCenter);
+    // Refresh the center on scroll, but only while the pointer is actually
+    // hovering — avoids a forced layout read on every scroll frame otherwise.
+    document.addEventListener('scroll', () => {
+      if (!magHovering) return;
+      requestAnimationFrame(updateMagCenter);
+    }, { passive: true });
     dedicateBtn.addEventListener('mousemove', function(e) {
       var dx = (e.clientX - magBtnCX) * MAG_STRENGTH;
       var dy = (e.clientY - magBtnCY) * MAG_STRENGTH;
@@ -1538,15 +1655,17 @@ if (motionOK) {
   dedicateBtn.addEventListener('touchstart', function() { gsap.to(dedicateBtn, { scale: 0.96, duration: 0.08, ease: 'power2.out' }); }, { passive: true });
   dedicateBtn.addEventListener('touchend', function() { gsap.to(dedicateBtn, { scale: 1, duration: 0.12, ease: 'power2.out' }); }, { passive: true });
 
-  /* ── Dock play button — press feedback ── */
+  /* ── Dock play button — press feedback ──
+     easeOut, not easeIn: the response should be fast at the instant of press,
+     not slow-out (easeIn starts slow exactly when the user is watching). */
   dockPlay.addEventListener('mousedown', () => {
-    anime({ targets: dockPlay, scale: 0.85, duration: 80, easing: 'easeInQuad' });
+    anime({ targets: dockPlay, scale: 0.85, duration: 80, easing: 'easeOutQuad' });
   });
   dockPlay.addEventListener('mouseup', () => {
     anime({ targets: dockPlay, scale: 1, duration: 120, easing: 'cubicBezier(0.16, 1, 0.3, 1)' });
   });
   dockPlay.addEventListener('touchstart', () => {
-    anime({ targets: dockPlay, scale: 0.85, duration: 80, easing: 'easeInQuad' });
+    anime({ targets: dockPlay, scale: 0.85, duration: 80, easing: 'easeOutQuad' });
   }, { passive: true });
   dockPlay.addEventListener('touchend', () => {
     anime({ targets: dockPlay, scale: 1, duration: 120, easing: 'cubicBezier(0.16, 1, 0.3, 1)' });
@@ -1716,42 +1835,78 @@ if (spotlightGlow) {
 }
 
 /* ── Hero ambience — tsParticles: drifting hearts + sakura motes ── */
-(function heroParticles() {
-  const container = document.getElementById('heroParticles');
-  if (!container || !window.tsParticles) return;
-  const reduceM = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (reduceM) return;
+  function initHeroParticles() {
+    const container = document.getElementById('heroParticles');
+    if (!container || !window.tsParticles) return;
+    const reduceMQ = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+    if (reduceMQ && reduceMQ.matches) return;
 
-  window.tsParticles.load({
-    id: 'heroParticles',
-    options: {
-      fullScreen: { enable: false },
-      fpsLimit: 45,
-      background: { color: 'transparent' },
-      particles: {
-        number: { value: 26, density: { enable: true, width: 900, height: 700 } },
-        color: { value: ['#E5898B', '#F7C9C4', '#D4AF37', '#A84A4C'] },
-        shape: { type: ['star', 'circle'] },
-        opacity: { value: { min: 0.12, max: 0.5 } },
-        size: { value: { min: 2, max: 5 } },
-        move: {
-          enable: true,
-          speed: { min: 0.3, max: 0.9 },
-          direction: 'top',
-          straight: false,
-          outModes: { default: 'out' },
-          drift: 0.4,
+    window.tsParticles.load({
+      id: 'heroParticles',
+      options: {
+        fullScreen: { enable: false },
+        fpsLimit: 45,
+        background: { color: 'transparent' },
+        particles: {
+          number: { value: 26, density: { enable: true, width: 900, height: 700 } },
+          color: { value: ['#E5898B', '#F7C9C4', '#D4AF37', '#A84A4C'] },
+          shape: { type: ['star', 'circle'] },
+          opacity: { value: { min: 0.12, max: 0.5 } },
+          size: { value: { min: 2, max: 5 } },
+          move: {
+            enable: true,
+            speed: { min: 0.3, max: 0.9 },
+            direction: 'top',
+            straight: false,
+            outModes: { default: 'out' },
+            drift: 0.4,
+          },
+          rotate: { value: { min: 0, max: 360 }, animation: { enable: true, speed: 8 } },
+          shadow: { enable: false },
         },
-        rotate: { value: { min: 0, max: 360 }, animation: { enable: true, speed: 8 } },
-        shadow: { enable: false },
+        interactivity: {
+          events: { onHover: { enable: true, mode: 'repulse' }, resize: { enable: true } },
+          modes: { repulse: { distance: 90, duration: 0.35 } },
+        },
+        detectRetina: true,
       },
-      interactivity: {
-        events: { onHover: { enable: true, mode: 'repulse' }, resize: { enable: true } },
-        modes: { repulse: { distance: 90, duration: 0.35 } },
-      },
-      detectRetina: true,
-    },
-  }).catch(() => {});
+    }).then(() => {
+      // Pause the particle engine once the hero scrolls away so the loop never
+      // renders into a hidden layer (frees main-thread time while reading).
+      if (!window.tsParticles) return;
+      if ('IntersectionObserver' in window && 'domItem' in window.tsParticles) {
+        const heroEl = document.getElementById('hero') || container;
+        new IntersectionObserver((entries) => {
+          const visible = entries[0].isIntersecting;
+          const engine = window.tsParticles.domItem(0);
+          if (!engine) return;
+          if (visible) engine.play();
+          else engine.pause();
+        }, { threshold: 0.02 }).observe(heroEl);
+      }
+    }).catch(() => {});
+  }
+  initHeroParticles();
+  // Re-run when the lazily-injected tsParticles script arrives (the idle
+  // loader in index.html calls this). Safe: no-ops if already initialised.
+  window.tsParticlesInit = initHeroParticles;
+
+/* ── Pause decorative infinite animations when scrolled out of view ──
+   One shared observer stops spending paint/composite budget on things the
+   reader can't see: the aurora drift, border-glow spin, shiny-title sweep and
+   the memory marquee. Nothing is lost visually — it resumes the frame it's
+   read into view. */
+(function pauseOffscreenMotion() {
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (!('IntersectionObserver' in window)) return;
+  const targets = document.querySelectorAll('.aurora, .marquee-track, .hero-title-italic, .finale-card');
+  if (!targets.length) return;
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((en) => {
+      en.target.classList.toggle('motion-paused', !en.isIntersecting);
+    });
+  }, { rootMargin: '120px 0px', threshold: 0 });
+  targets.forEach((el) => io.observe(el));
 })();
 
 } catch(err) {

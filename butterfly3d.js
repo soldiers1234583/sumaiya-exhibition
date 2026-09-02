@@ -49,7 +49,6 @@ async function findModelFile() {
   return null;
 }
 
-const DPR_CAP = 2;
 const CAM_DIST = 12;
 const PRELOADER_CAM_DIST = 5.5;
 const PRELOADER_SCALE = 0.62; // fits the 238×199 preloader motif box
@@ -68,6 +67,10 @@ const WING_PATHS = {
 };
 
 const REDUCE = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const COARSE = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+// Low-end phones: cap device-pixel-ratio lower so the composer + bloom don't
+// push a full-res framebuffer through a mobile tile GPU every frame.
+const DPR_CAP = COARSE ? 1.5 : 2;
 
 /* ── procedural Morpho wing texture (reproduces the SVG gradients) ── */
 function makeWingTexture() {
@@ -233,7 +236,7 @@ class Butterfly {
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       alpha: true,
-      antialias: true,
+      antialias: false,
       powerPreference: 'high-performance',
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, DPR_CAP));
@@ -271,10 +274,13 @@ class Butterfly {
     this.modelLoaded = false;
     this._tryLoadModel();
 
-    // Post: bloom flares the iridescent highlights.
+    // Post: bloom flares the iridescent highlights. On coarse pointers halve
+    // the bloom resolution so the ~11-pass chain doesn't dominate mobile GPUs.
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.bloomRes = COARSE ? 0.5 : 1;
     this.bloom = new UnrealBloomPass(new THREE.Vector2(canvas.clientWidth || 640, canvas.clientHeight || 480), 0.6, 0.65, 0.9);
+    this.bloom.setSize(Math.round((canvas.clientWidth || 640) * this.bloomRes), Math.round((canvas.clientHeight || 480) * this.bloomRes));
     this.composer.addPass(this.bloom);
 
     // State
@@ -296,8 +302,9 @@ class Butterfly {
     this.boundStartle = (e) => this.startle(e.clientX, e.clientY);
     this.boundScroll = () => this.updatePerch();
 
+    this._resizeHandler = () => this._scheduleResize();
     this._onResize();
-    window.addEventListener('resize', this._onResize = this._onResize.bind(this));
+    window.addEventListener('resize', this._resizeHandler);
     if (!this.preloader) {
       window.addEventListener('pointermove', this.boundPointer, { passive: true });
       window.addEventListener('click', this.boundStartle, { passive: true });
@@ -319,6 +326,17 @@ class Butterfly {
     }
     this.started = true;
     this.renderer.setAnimationLoop(this.loop);
+
+    // Pause the companion loop when its canvas scrolls out of view so it never
+    // renders into a hidden layer (keeps phone GPUs idle as you read).
+    if (!this.preloader) {
+      this._io = new IntersectionObserver((entries) => {
+        const visible = entries[0].isIntersecting;
+        if (visible && this.started) this.renderer.setAnimationLoop(this.loop);
+        else this.renderer.setAnimationLoop(null);
+      }, { threshold: 0.02 });
+      this._io.observe(this.canvas);
+    }
   }
 
   /* scroll-linked perch: butterfly hovers near the content you're reading */
@@ -375,7 +393,14 @@ class Butterfly {
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.composer.setSize(w, h);
-    if (this.bloom) this.bloom.setSize(w, h);
+    if (this.bloom) this.bloom.setSize(Math.round(w * this.bloomRes), Math.round(h * this.bloomRes));
+  }
+
+  /* debounced resize — Android's collapsing URL bar fires resize repeatedly
+     while scrolling; reallocating 11 bloom RTs on each one drops frames. */
+  _scheduleResize() {
+    if (this._resizeTO) clearTimeout(this._resizeTO);
+    this._resizeTO = setTimeout(() => this._onResize(), 150);
   }
 
   /* Load a real pre-made butterfly model (e.g. from CGTrader) from /models/.
@@ -405,10 +430,12 @@ class Butterfly {
 
     // Morpho didius texture set shipped alongside the model (FBX packs don't
     // embed their textures — apply them manually, per the pack's Read Me).
+    // Prefer pre-downscaled WebP sidecars (~180KB total vs ~3.5MB of 2476×4032
+    // JPEG) — a ~120MB → ~16MB GPU upload on phone tiers.
     const texLoader = new THREE.TextureLoader();
-    const mapTex = texLoader.load('models/textures/DIFFUSE_Morpho_didius_Male_Dos_MHNT.jpg');
-    const alphaTex = texLoader.load('models/textures/ALPHA_OR_OPACITY_MASK_Morpho_didius_Male_Dos_MHNT.jpg');
-    const normalTex = texLoader.load('models/textures/NORMAL_MAP_Morpho_didius_Male_Dos_MHNT_NRM.jpg');
+    const mapTex = texLoader.load('models/textures/DIFFUSE-Morpho-didius-sq.webp', undefined, undefined, () => texLoader.load('models/textures/DIFFUSE_Morpho_didius_Male_Dos_MHNT.jpg'));
+    const alphaTex = texLoader.load('models/textures/ALPHA-Morpho-didius-sq.webp', undefined, undefined, () => texLoader.load('models/textures/ALPHA_OR_OPACITY_MASK_Morpho_didius_Male_Dos_MHNT.jpg'));
+    const normalTex = texLoader.load('models/textures/NORMAL-Morpho-didius-sq.webp', undefined, undefined, () => texLoader.load('models/textures/NORMAL_MAP_Morpho_didius_Male_Dos_MHNT_NRM.jpg'));
     mapTex.colorSpace = THREE.SRGBColorSpace;
 
     model.traverse((o) => {
@@ -552,7 +579,19 @@ class Butterfly {
     window.removeEventListener('pointermove', this.boundPointer);
     window.removeEventListener('click', this.boundStartle);
     window.removeEventListener('scroll', this.boundScroll);
+    window.removeEventListener('resize', this._resizeHandler);
+    if (this._io) this._io.disconnect();
+    if (this._resizeTO) clearTimeout(this._resizeTO);
     this.renderer.setAnimationLoop(null);
+    // Free GPU resources the renderer.dispose() alone won't touch.
+    if (this.composer && this.composer.dispose) this.composer.dispose();
+    if (this.bloom && this.bloom.dispose) this.bloom.dispose();
+    this.butterfly.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+    const mats = new Set;
+    this.butterfly.traverse((o) => { if (o.material) mats.add(o.material); });
+    mats.forEach((m) => m && m.dispose && m.dispose());
+    const wt = this.butterfly.userData && this.butterfly.userData.wingTex;
+    if (wt) wt.dispose();
     this.renderer.dispose();
   }
 }
@@ -580,7 +619,11 @@ class Butterfly {
     }
   }
 
-  if (companionCanvas) {
+  // Companion is created only once the splash is gone (or on first explicit
+  // start() call) so we never run two WebGL contexts + two bloom chains at
+  // once during the 3.6s preloader.
+  function bootCompanion() {
+    if (companion || !companionCanvas) return;
     try {
       companion = new Butterfly(companionCanvas);
       companionCanvas.classList.add('ready');
@@ -591,19 +634,30 @@ class Butterfly {
     }
   }
 
-  // Tear down the preloader 3D scene once the splash leaves the DOM.
+  // Tear down the preloader 3D scene once the splash leaves the DOM, then
+  // boot the page-wide companion so the butterfly hands off seamlessly.
   if (pre && preloader) {
     new MutationObserver((muts, obs) => {
       if (!document.getElementById('preloader')) {
         obs.disconnect();
         pre.dispose();
         pre = null;
+        bootCompanion();
       }
     }).observe(preloader.parentNode, { childList: true });
+  } else {
+    // No preloader in this page (e.g. model-viewer) — boot right away.
+    bootCompanion();
   }
 
   window.Butterfly3D = {
-    start: () => { if (companion && !companion.started && !companion.reduced) { companion.started = true; companion.renderer.setAnimationLoop(companion.loop); } },
+    start: () => {
+      if (!companion) bootCompanion();
+      if (companion && !companion.started && !companion.reduced && !preloader) {
+        companion.started = true;
+        companion.renderer.setAnimationLoop(companion.loop);
+      }
+    },
     setBeat: (v) => { if (companion) companion.setBeat(v); },
   };
 })();
