@@ -731,6 +731,56 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   opacity: 1;
   transform: translateY(0);
 }
+/* ── Scroll-driven reveals (Chrome 115+) ──
+   When native View Timelines are available, .reveal animates ON THE COMPOSITOR
+   thread — silky smooth with zero JS, no main-thread jank — which is what a
+   mid-range tablet needs. GSAP/anime.js stays as the fallback for older
+   browsers (app.js feature-detects and skips its batch when native is on). */
+@supports (animation-timeline: view()) {
+  .reveal {
+    opacity: 0;
+    transform: translateY(30px);
+    animation: revealFadeUp linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 40%;
+  }
+  .reveal.revealed { animation: none; opacity: 1; transform: translateY(0); }
+}
+@keyframes revealFadeUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+/* Scroll progress — native scroll timeline (compositor) when available. */
+@supports (animation-timeline: scroll()) {
+  .scroll-progress {
+    transform: scaleX(0);
+    transform-origin: left;
+    animation: progressGrow linear both;
+    animation-timeline: scroll(root);
+  }
+  /* Hero parallax — motifs drift at their own depth, off the main thread. */
+  .hero-motif {
+    animation: motifParallax linear both;
+    animation-timeline: scroll(root);
+    animation-range: 0 600px;
+  }
+  .hero-motif--leclerc { --motif-depth: -18px; }
+  .hero-motif--wings    { --motif-depth: -30px; }
+  .hero-motif--vinyl    { --motif-depth: -26px; }
+  .hero-motif--yarn     { --motif-depth: -42px; }
+  .hero-motif--star     { --motif-depth: -22px; }
+  .hero-motif--heart    { --motif-depth: -34px; }
+  .hero-motif--heart-left  { --motif-depth: -28px; }
+  .hero-motif--heart-right { --motif-depth: -40px; }
+}
+@keyframes motifParallax {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(0, var(--motif-depth, -24px), 0); }
+}
+@keyframes progressGrow {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
 /* Elements with dedicated anime.js animations — start hidden via JS, not CSS
    (CSS opacity:0 fights anime.js inline styles on complete) */
 
@@ -1989,7 +2039,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   display: flex;
   align-items: center;
   gap: 0.8rem;
-  background: rgba(255, 248, 239, 0.92);
+  background: rgba(255, 248, 239, 0.97);
   border: 1px solid rgba(200, 160, 110, 0.15);
   border-radius: 40px;
   padding: 0.5rem 1rem 0.5rem 0.5rem;
@@ -1997,7 +2047,6 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   opacity: 0;
   transform: translateY(15px);
   transition: opacity 0.3s var(--ease-out), transform 0.3s var(--ease-out);
-  backdrop-filter: blur(8px);
 }
 .audio-dock.visible {
   opacity: 1;
@@ -3682,10 +3731,11 @@ body.no-scroll { overflow: hidden; }
 .spotlight-glow {
   opacity: calc(0.55 + var(--beat-low) * 0.9);
 }
-/* fairy lights pulse to the mid band */
+/* fairy lights pulse to the mid band — opacity (composited), not filter
+   (filter: brightness repaints the pixels every frame on mobile GPUs). */
 .fairy-light {
-  filter: brightness(calc(0.7 + var(--beat-mid) * 0.8));
-  transition: filter 0.12s ease;
+  opacity: calc(0.62 + var(--beat-mid) * 0.38);
+  transition: opacity 0.12s ease;
 }
 /* vinyl pumps with the kick */
 .dock-vinyl { will-change: transform; }
@@ -3697,10 +3747,23 @@ body.no-scroll { overflow: hidden; }
   40% { transform: scale(calc(1 + var(--beat-low) * 0.05)); }
   100% { transform: scale(1); }
 }
-/* hero title glow intensifies with the beat */
+/* hero title glow intensifies with the beat — a composited glow blob behind
+   the text whose opacity pulses, instead of repainting text-shadow per frame. */
 .hero-title {
-  text-shadow: 0 0 calc(8px + var(--beat-high) * 18px) rgba(229, 137, 139, calc(0.12 + var(--beat-high) * 0.25));
-  transition: text-shadow 0.15s ease;
+  text-shadow: 0 0 8px rgba(229, 137, 139, 0.12);
+  position: relative;
+}
+.hero-title::before {
+  content: '';
+  position: absolute;
+  inset: -0.2em -0.4em;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(229, 137, 139, 0.5), transparent 70%);
+  opacity: calc(0.08 + var(--beat-high) * 0.5);
+  filter: blur(0); /* composited via opacity/transform only */
+  pointer-events: none;
+  transition: opacity 0.15s ease;
 }
 
 @media (prefers-reduced-motion: reduce) {

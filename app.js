@@ -1274,7 +1274,10 @@ mm.add({ motionOK: '(prefers-reduced-motion: no-preference)', motionReduce: REDU
   }
 
   /* ── TIER 1: Parallax on hero motifs (GSAP — scrub needs continuous RAF) ── */
-  if (ok) {
+  // Native CSS scroll timelines animate these on the compositor when available;
+  // GSAP is only the fallback for older browsers.
+  const nativeScrollTimeline = (typeof CSS !== 'undefined' && CSS.supports && CSS.supports('animation-timeline', 'scroll()'));
+  if (ok && !nativeScrollTimeline) {
     document.querySelectorAll('.hero-motif').forEach((m, i) => {
       gsap.to(m, {
         y: () => -30 * (1 + i * 0.4),
@@ -1286,7 +1289,11 @@ mm.add({ motionOK: '(prefers-reduced-motion: no-preference)', motionReduce: REDU
   }
 
   /* ── TIER 2: General scroll reveals — anime.js ── */
-  if (ok) {
+  // When native CSS scroll-driven reveal animations are supported (Chrome 115+),
+  // they animate on the compositor and we let them run — skipping this main-thread
+  // batch entirely. Otherwise fall back to the anime.js ScrollTrigger batch.
+  const nativeRenderReveal = (typeof CSS !== 'undefined' && CSS.supports && CSS.supports('animation-timeline', 'view()'));
+  if (ok && !nativeRenderReveal) {
     /* Elements with dedicated entrances (hero timeline, gallery stagger,
        section-heading trigger) are excluded so they don't get animated twice. */
     ScrollTrigger.batch('.reveal:not(.hero-badge):not(.hero-subtitle):not(.section-heading):not(.art-card)', {
@@ -1307,6 +1314,9 @@ mm.add({ motionOK: '(prefers-reduced-motion: no-preference)', motionReduce: REDU
         });
       },
     });
+  } else if (ok && nativeRenderReveal) {
+    // Native compositor reveal — just mark them revealed so skeletons finish.
+    document.querySelectorAll('.reveal').forEach(el => { el.classList.add('revealed'); el.querySelectorAll('.skeleton').forEach(s => s.classList.add('skel-done')); });
   } else {
     document.querySelectorAll('.reveal').forEach(el => { el.style.opacity = 1; el.classList.add('revealed'); el.querySelectorAll('.skeleton').forEach(s => s.classList.add('skel-done')); });
   }
@@ -1435,6 +1445,12 @@ let ambientOscillators = [];
 let ambientNoise = null;
 let analyser = null;
 let beatRAF = null;
+// Whether the hero (which owns the beat-reactive lighting) is on screen.
+let beatHeroVisible = true;
+if ('IntersectionObserver' in window) {
+  const hero = document.getElementById('hero');
+  if (hero) new IntersectionObserver((en) => { beatHeroVisible = en[0].isIntersecting; }, { threshold: 0.02 }).observe(hero);
+}
 
 function startAmbient() {
   const AC = window.AudioContext || window.webkitAudioContext;
@@ -1493,10 +1509,14 @@ function startAmbient() {
     const q = (v) => Math.round(v * 20) / 20;
     low = q(low); mid = q(mid); high = q(high);
     const avgQ = q(avg);
-    if (low !== lastLow) { lastLow = low; document.documentElement.style.setProperty('--beat-low', String(low)); }
-    if (mid !== lastMid) { lastMid = mid; document.documentElement.style.setProperty('--beat-mid', String(mid)); }
-    if (high !== lastHigh) { lastHigh = high; document.documentElement.style.setProperty('--beat-high', String(high)); }
-    if (avgQ !== lastAvg) { lastAvg = avgQ; document.documentElement.style.setProperty('--beat-avg', String(avgQ)); }
+    // The beat lighting only exists in the hero — skip the DOM writes when the
+    // hero has scrolled out of view so we never repaint invisible effects.
+    if (beatHeroVisible !== false) {
+      if (low !== lastLow) { lastLow = low; document.documentElement.style.setProperty('--beat-low', String(low)); }
+      if (mid !== lastMid) { lastMid = mid; document.documentElement.style.setProperty('--beat-mid', String(mid)); }
+      if (high !== lastHigh) { lastHigh = high; document.documentElement.style.setProperty('--beat-high', String(high)); }
+      if (avgQ !== lastAvg) { lastAvg = avgQ; document.documentElement.style.setProperty('--beat-avg', String(avgQ)); }
+    }
     beatRAF = requestAnimationFrame(beatLoop);
   }
   beatLoop();
@@ -1767,9 +1787,12 @@ if (motionOK) {
     });
   });
 
-  /* ── Scroll progress — thin gold editorial reading line ── */
+  /* ── Scroll progress — thin gold editorial reading line ──
+     Native CSS scroll timelines (Chrome 115+) drive this on the compositor;
+     the GSAP scrub is only the fallback for older browsers. */
   const progressBar = document.getElementById('scrollProgress');
-  if (progressBar) {
+  const nativeScrollProgress = (typeof CSS !== 'undefined' && CSS.supports && CSS.supports('animation-timeline', 'scroll()'));
+  if (progressBar && !nativeScrollProgress) {
     gsap.to(progressBar, {
       scaleX: 1,
       ease: 'none',
@@ -1905,7 +1928,7 @@ if (spotlightGlow) {
         fpsLimit: 45,
         background: { color: 'transparent' },
         particles: {
-          number: { value: 26, density: { enable: true, width: 900, height: 700 } },
+          number: { value: (window.matchMedia && window.matchMedia('(pointer: coarse)').matches ? 14 : 26), density: { enable: true, width: 900, height: 700 } },
           color: { value: ['#E5898B', '#F7C9C4', '#D4AF37', '#A84A4C'] },
           shape: { type: ['star', 'circle'] },
           opacity: { value: { min: 0.12, max: 0.5 } },
@@ -1956,7 +1979,13 @@ if (spotlightGlow) {
 (function pauseOffscreenMotion() {
   if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   if (!('IntersectionObserver' in window)) return;
-  const targets = document.querySelectorAll('.aurora, .marquee-track, .hero-title-italic, .finale-card');
+  // Every persistent page-wide infinite animation is paused when scrolled out
+  // of view so the tablet never pays for motion it can't see.
+  const targets = document.querySelectorAll(
+    '.aurora, .marquee-track, .hero-title-italic, .finale-card, .meteors, ' +
+    '.fairy-light, .sakura-petal, .hero-motif--heart, .hero-motif--heart-left, ' +
+    '.hero-motif--heart-right, .hero-motif--vinyl, .hero-motif--star, .reason-heart'
+  );
   if (!targets.length) return;
   const io = new IntersectionObserver((entries) => {
     entries.forEach((en) => {
