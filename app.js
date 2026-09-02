@@ -834,6 +834,42 @@ function launchConfetti() {
   }, 350);
 }
 
+/* ── Heart burst — delight erupts from the button when you dedicate ──
+   GPU-composited (transform + opacity + scale only): hearts float up from the
+   button and fade, with a springy pop on the button itself. Skipped under
+   prefers-reduced-motion. */
+function heartBurst(el) {
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (typeof gsap === 'undefined') return;
+  const rect = el.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  const COLORS = ['#E5898B', '#F7C9C4', '#D4AF37', '#C7B8E8', '#C7E3D1', '#E8A86C'];
+  const N = 14;
+  for (let i = 0; i < N; i++) {
+    const h = document.createElement('span');
+    h.setAttribute('aria-hidden', 'true');
+    h.textContent = '♥';
+    h.style.cssText = 'position:fixed;pointer-events:none;z-index:9999;left:0;top:0;' +
+      'font-size:' + (16 + Math.random() * 16) + 'px;line-height:1;' +
+      'color:' + COLORS[(Math.random() * COLORS.length) | 0] + ';' +
+      'will-change:transform,opacity;' +
+      'text-shadow:0 1px 8px rgba(229,137,139,0.45);';
+    document.body.appendChild(h);
+    const dx = (Math.random() - 0.5) * 220;
+    const dy = -(90 + Math.random() * 190);
+    gsap.set(h, { left: cx, top: cy, xPercent: -50, yPercent: -50, scale: 0.35, opacity: 1, rotation: (Math.random() - 0.5) * 40 });
+    gsap.to(h, {
+      x: dx, y: dy, opacity: 0, scale: 1.15 + Math.random() * 0.6, rotation: (Math.random() - 0.5) * 120,
+      duration: 1.0 + Math.random() * 0.55,
+      ease: 'power2.out',
+      onComplete: () => { if (h.parentNode) h.remove(); },
+    });
+  }
+  // Springy pop on the button itself.
+  gsap.fromTo(el, { scale: 0.9 }, { scale: 1, duration: 0.5, ease: 'elastic.out(1, 0.5)', overwrite: 'auto' });
+}
+
 /* ── Hearts-dedicated counter (persisted locally) ── */
 const HEARTS_KEY = 'sumaiya_hearts';
 const dedicateHearts = document.getElementById('dedicateHearts');
@@ -930,6 +966,8 @@ if (guestbookForm) {
 const dedicateBtn = document.getElementById('dedicateBtn');
 if (dedicateBtn) {
   dedicateBtn.addEventListener('click', function() {
+    // Heart burst erupts from the button itself, then the full celebration.
+    heartBurst(this);
     launchConfetti();
     this.classList.add('done');
     this.textContent = '♥ Dedicated';
