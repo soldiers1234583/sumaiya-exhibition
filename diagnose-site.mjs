@@ -1,62 +1,45 @@
-// Diagnose the LIVE site's animation state with real Chromium.
-// Reports ground-truth facts we can't see from static analysis.
+// Diagnose the audio dock play/pause with real Chromium.
 import { chromium } from 'playwright';
 
 const SITE = 'https://soldiers1234583.github.io/sumaiya-site/';
-
 const browser = await chromium.launch();
 const errors = [];
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-page.on('console', (m) => { if (m.type() === 'error') errors.push(`CONSOLE ERROR: ${m.text()}`); });
-page.on('pageerror', (e) => errors.push(`PAGE ERROR: ${e.message}`));
+page.on('console', (m) => { if (m.type() === 'error') errors.push('CONSOLE: ' + m.text()); });
+page.on('pageerror', (e) => errors.push('PAGEERROR: ' + e.message));
 
-await page.goto(SITE, { waitUntil: 'networkidle', timeout: 30000 }).catch((e) => errors.push('NAV ERROR: ' + e.message));
+await page.goto(SITE, { waitUntil: 'networkidle', timeout: 30000 }).catch(e => errors.push('NAV: ' + e.message));
 
-// 1. prefers-reduced-motion state
-const reduceMotion = await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches);
-const jsPresent = await page.evaluate(() => document.documentElement.classList.contains('js'));
-const noJs = await page.evaluate(() => document.documentElement.classList.contains('no-js'));
+// The dock becomes visible when the gallery scrolls into view.
+await page.evaluate(() => { const g = document.getElementById('gallery'); if (g) g.scrollIntoView(); });
+await page.waitForTimeout(1200);
 
-// 2. Did the libs / animation engine load?
-const libs = await page.evaluate(() => ({
-  gsap: !!window.gsap,
-  anime: !!window.anime,
-  ScrollTrigger: !!window.ScrollTrigger,
-}));
-
-// 3. Are any .reveal elements stuck invisible (opacity 0) after load + scroll?
-const reveals = await page.evaluate(() => {
-  const els = [...document.querySelectorAll('.reveal')];
-  const visible = els.filter(e => parseFloat(getComputedStyle(e).opacity) > 0.5).length;
-  const stuck = els.filter(e => parseFloat(getComputedStyle(e).opacity) < 0.5).length;
-  const revealedClass = els.filter(e => e.classList.contains('revealed')).length;
-  return { total: els.length, visible, stuck, revealedClass };
+const before = await page.evaluate(() => {
+  const p = document.getElementById('dockPlay');
+  return { exists: !!p, text: p && p.textContent, visible: !!(p && p.offsetParent) };
 });
 
-// 4. Scroll down to trigger reveal batches, then re-check.
-await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-await page.waitForTimeout(2500);
-const afterScroll = await page.evaluate(() => {
-  const els = [...document.querySelectorAll('.reveal')];
-  return {
-    visible: els.filter(e => parseFloat(getComputedStyle(e).opacity) > 0.5).length,
-    stuck: els.filter(e => parseFloat(getComputedStyle(e).opacity) < 0.5).length,
-  };
+// Click the play button.
+let clickErr = null;
+try { await page.click('#dockPlay', { timeout: 4000 }); } catch (e) { clickErr = 'CLICK ERR: ' + e.message; }
+await page.waitForTimeout(1500);
+
+const after = await page.evaluate(() => {
+  const p = document.getElementById('dockPlay');
+  const info = { playText: p && p.textContent, isPlayingClass: document.querySelector('.audio-dock')?.classList.contains('playing'), vinylSpin: document.querySelector('.dock-vinyl')?.classList.contains('spinning') };
+  // Try to reach the <audio> element
+  let audio = null;
+  // It's created in JS via new Audio(), not in DOM; check via any <audio>
+  const els = document.querySelectorAll('audio');
+  info.audioEls = els.length;
+  info.dockTrack = document.getElementById('dockTrack')?.textContent;
+  info.dockArtist = document.getElementById('dockArtist')?.textContent;
+  return info;
 });
 
-// 5. Is any component hidden by reduced-motion (display:none / opacity:0)?
-const hiddenComps = await page.evaluate(() => {
-  const sel = ['.crochet-reveal', '.memory-marquee', '.polaroid-back', '.meteor', '.lamplight', '.bento-spotlight'];
-  return sel.filter(s => {
-    const el = document.querySelector(s);
-    if (!el) return false;
-    const st = getComputedStyle(el);
-    return st.display === 'none' || parseFloat(st.opacity) < 0.05;
-  });
-});
+// Also test the next button
+let nextErr = null;
+try { await page.click('#dockNext', { timeout: 4000 }); } catch (e) { nextErr = 'NEXT ERR: ' + e.message; }
 
-// 6. Preloader state after load (should be gone by now)
-const preloaderGone = await page.evaluate(() => !document.getElementById('preloader'));
-
-console.log(JSON.stringify({ reduceMotion, jsPresent, noJs, libs, reveals, afterScroll, hiddenComps, preloaderGone, errors }, null, 2));
+console.log(JSON.stringify({ before, after, clickErr, nextErr, errors }, null, 2));
 await browser.close();
