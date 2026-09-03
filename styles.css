@@ -2027,6 +2027,19 @@ html:not(.js) .reveal {
 .dock-vinyl.spinning {
   animation: spin 2s linear infinite;
 }
+/* Album-art thumbnail — filled by metadata extraction when available. */
+.dock-cover {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  background: rgba(26, 26, 26, 0.06);
+  background-size: cover;
+  background-position: center;
+  border: 1px solid rgba(200, 160, 110, 0.18);
+  transition: background-image 0.3s ease;
+}
+.dock-cover.has-art { box-shadow: 0 2px 8px rgba(26, 26, 26, 0.18); }
 
 .dock-info {
   display: flex;

@@ -28,6 +28,8 @@ const SIDECAR_FILES = [
   'vendor/bundle.js',
   'vendor/canvas-confetti.min.js',
   'vendor/tsparticles.bundle.min.js',
+  'vendor/music-metadata.mjs',
+  'vendor/music-metadata-loader.mjs',
 ];
 
 function walk(dir) {

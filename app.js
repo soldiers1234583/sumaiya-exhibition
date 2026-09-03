@@ -1418,7 +1418,7 @@ document.querySelectorAll('.vibe-fill').forEach(fill => {
 });
 
 /* ═══════════════════════════════════════════
-   AUDIO DOCK
+   AUDIO DOCK — real music player
    ═══════════════════════════════════════════ */
 const audioDock = document.getElementById('audioDock');
 const dockVinyl = document.getElementById('dockVinyl');
@@ -1432,38 +1432,37 @@ ScrollTrigger.create({
   onEnter: () => audioDock.classList.add('visible'),
 });
 
-/* ── Procedural soundscapes — the "tracks" you can switch between ──
-   Each is a distinct chord/scale + filter + pulse mood built purely from
-   WebAudio (no audio files, self-hosted, offline-friendly). Each entry:
-     notes   : array of frequencies (Hz) for the chord/arpeggio bed
-     cutoff  : lowpass cutoff (Hz) shaping warmth vs airiness
-     noiseHz : bandpass centre for the room-ambience texture
-     pulse   : optional beat (null = even drift; a Hz value = slow pulse)
-     vinyl   : whether the vinyl should keep spinning (all do while playing) */
+/* ── Tracklist — the songs you add as FLAC (or mp3) in /audio/ ──
+   Each entry: file (relative path, lowercase-friendly), and the tags we know
+   up-front. At runtime we RE-READ the actual embedded FLAC/ID3 tags with
+   music-metadata and override these, so the metadata is always the real,
+   complete set from the file itself (title, artist, album, year, genre,
+   duration, bitrate, codec, cover art). */
 const TRACKS = [
-  { name: '505',        artist: 'Arctic Monkeys',     notes: [110, 164.8, 220.6, 329.6], cutoff: 420,  noiseHz: 1600, pulse: null },
-  { name: 'Amber Haze', artist: 'The Exhibition',     notes: [130.8, 174.6, 261.6, 392],  cutoff: 700,  noiseHz: 1100, pulse: 0.22 },
-  { name: 'Warm Static',artist: 'Fireside Choir',     notes: [98, 146.8, 196, 293.7],    cutoff: 260,  noiseHz: 2200, pulse: null },
-  { name: 'Blue Hour',  artist: 'Moth & Moon',        notes: [86.5, 129.6, 172.7, 259.1], cutoff: 900,  noiseHz: 800,  pulse: 0.18 },
-  { name: 'Paper Stars',artist: 'Kite Season',        notes: [147, 196, 246.9, 369.9],   cutoff: 560,  noiseHz: 1400, pulse: 0.3 },
-  { name: 'Quiet Gold', artist: 'The Archive',        notes: [112, 149.5, 224, 336.5],    cutoff: 340,  noiseHz: 1900, pulse: null },
+  { file: 'audio/505.flac',              name: '505',                 artist: 'Arctic Monkeys',      album: 'Favourite Worst Nightmare', year: 2007 },
+  { file: 'audio/softcore.flac',         name: 'Softcore',            artist: 'The Neighbourhood',   album: 'Hard To Imagine The Neighbourhood Ever Changing', year: 2018 },
+  { file: 'audio/i-wanna-be-yours.flac', name: 'I Wanna Be Yours',    artist: 'Arctic Monkeys',      album: 'AM',                        year: 2013 },
+  { file: 'audio/stay-at-your-house.flac', name: 'I Really Want to Stay at Your House', artist: 'Rosa Walton', album: 'Cyberpunk 2077: Radio, Vol. 2 (Original Soundtrack)', year: 2020 },
 ];
 let currentTrack = 0;
+let trackMeta = []; // enriched metadata read from each file
+
 function setDockLabel() {
   const t = TRACKS[currentTrack];
-  if (dockTrackEl) dockTrackEl.textContent = t.name;
-  if (dockArtistEl) dockArtistEl.textContent = t.artist;
-  if (dockPlay) dockPlay.setAttribute('aria-label', (isPlaying ? 'Pause ' : 'Play ') + t.name + ' by ' + t.artist);
+  const meta = trackMeta[currentTrack] || t;
+  if (dockTrackEl) dockTrackEl.textContent = meta.name || t.name;
+  if (dockArtistEl) dockArtistEl.textContent = meta.artist || t.artist;
+  if (dockPlay) dockPlay.setAttribute('aria-label', (isPlaying ? 'Pause ' : 'Play ') + (meta.name || t.name) + ' by ' + (meta.artist || t.artist));
 }
 setDockLabel();
 
-/* ── WebAudio ambient — a warm exhibition-hall hum ── */
+/* ── Audio engine — real <audio> element → analyser → beat-reactive lighting ── */
 let audioCtx = null;
-let ambientGain = null;
-let ambientOscillators = [];
-let ambientNoise = null;
 let analyser = null;
 let beatRAF = null;
+let audioEl = null;         // the <audio> element that plays the selected file
+let srcNode = null;         // MediaElementAudioSourceNode (created once)
+let trackLoading = false;
 // Whether the hero (which owns the beat-reactive lighting) is on screen.
 let beatHeroVisible = true;
 if ('IntersectionObserver' in window) {
@@ -1471,220 +1470,95 @@ if ('IntersectionObserver' in window) {
   if (hero) new IntersectionObserver((en) => { beatHeroVisible = en[0].isIntersecting; }, { threshold: 0.02 }).observe(hero);
 }
 
-function startAmbient() {
-  const AC = window.AudioContext || window.webkitAudioContext;
-  if (!AC) return false;
-  if (!audioCtx) audioCtx = new AC();
-  if (audioCtx.state === 'suspended') audioCtx.resume();
+function ensureAudioEl() {
+  if (audioEl) return audioEl;
+  audioEl = new Audio();
+  audioEl.preload = 'metadata';
+  // FLAC plays in Chrome/Edge/Firefox/Android; Safari needs a lossy fallback.
+  audioEl.addEventListener('ended', () => { isPlaying = false; syncPlayUI(); });
+  // Keep lighting analyser attached one time.
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!audioCtx) audioCtx = new AC();
+    srcNode = audioCtx.createMediaElementSource(audioEl);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 64;
+    analyser.smoothingTimeConstant = 0.75;
+    srcNode.connect(analyser);
+    analyser.connect(audioCtx.destination);
+  } catch (e) { /* WebAudio unavailable — audio still plays, just no reactive lighting */ }
+  return audioEl;
+}
 
-  // Analyser for beat-reactive lighting
-  analyser = audioCtx.createAnalyser();
-  analyser.fftSize = 64;
-  analyser.smoothingTimeConstant = 0.75;
-  const beatData = new Uint8Array(analyser.frequencyBinCount);
+function syncPlayUI() {
+  dockVinyl.classList.toggle('spinning', isPlaying);
+  audioDock.classList.toggle('playing', isPlaying);
+  dockPlay.textContent = isPlaying ? '❚❚' : '▶';
+  setDockLabel();
+}
 
-  ambientGain = audioCtx.createGain();
-  ambientGain.gain.value = 0;
-  ambientGain.connect(analyser);
-  analyser.connect(audioCtx.destination);
+function loadTrack(index) {
+  const t = TRACKS[index];
+  const el = ensureAudioEl();
+  trackLoading = true;
+  el.src = t.file;
+  el.load();
+  // (Re)read the real embedded FLAC/ID3 tags so metadata is always accurate.
+  readTrackMetadata(index, t);
+  trackLoading = false;
+}
 
-  // Beat-pump loop: sets CSS vars for lighting.
-  // Throttled (~10fps) + quantised so lighting only recalcs when a band
-  // meaningfully changes — keeps the beat feel without a whole-tree style
-  // recalc storm on every animation frame.
-  let beatFrame = 0;
-  let lastLow = -1, lastMid = -1, lastHigh = -1, lastAvg = -1;
-  const beatReduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  function beatLoop() {
-    if (!analyser || !isPlaying) { beatRAF = null; return; }
-    analyser.getByteFrequencyData(beatData);
-    // Low band (bass ~58-260 Hz) → warmth pulse
-    let low = 0, mid = 0, high = 0, sum = 0;
-    for (let i = 0; i < beatData.length; i++) {
-      const v = beatData[i] / 255;
-      sum += v;
-      if (i < 4) low += v;
-      else if (i < 10) mid += v;
-      else high += v;
-    }
-    const avg = sum / beatData.length;
-    low = Math.min(1, low / 4);
-    mid = Math.min(1, mid / 6);
-    high = Math.min(1, high / (beatData.length - 10));
-
-    // Under reduced motion we stop writing the lighting variables so no
-    // flicker survives the CSS cut (the 3D Butterfly companion was removed).
-    if (beatReduce) {
-      beatRAF = requestAnimationFrame(beatLoop);
-      return;
-    }
-
-    // Throttle CSS-var writes to ~every 6th frame (~10fps) and quantise to
-    // 0.05 steps. Write only when a band actually changed.
-    if ((beatFrame++ % 6) !== 0) {
-      beatRAF = requestAnimationFrame(beatLoop);
-      return;
-    }
-    const q = (v) => Math.round(v * 20) / 20;
-    low = q(low); mid = q(mid); high = q(high);
-    const avgQ = q(avg);
-    // The beat lighting only exists in the hero — skip the DOM writes when the
-    // hero has scrolled out of view so we never repaint invisible effects.
-    if (beatHeroVisible !== false) {
-      if (low !== lastLow) { lastLow = low; document.documentElement.style.setProperty('--beat-low', String(low)); }
-      if (mid !== lastMid) { lastMid = mid; document.documentElement.style.setProperty('--beat-mid', String(mid)); }
-      if (high !== lastHigh) { lastHigh = high; document.documentElement.style.setProperty('--beat-high', String(high)); }
-      if (avgQ !== lastAvg) { lastAvg = avgQ; document.documentElement.style.setProperty('--beat-avg', String(avgQ)); }
-    }
-    beatRAF = requestAnimationFrame(beatLoop);
-  }
-  beatLoop();
-
-  const track = TRACKS[currentTrack];
-
-  const lp = audioCtx.createBiquadFilter();
-  lp.type = 'lowpass';
-  lp.frequency.value = track ? track.cutoff : 420;
-  lp.Q.value = 0.8;
-  lp.connect(ambientGain);
-
-  // Build the chord bed from the current track's note frequencies. Keep a
-  // reference to each oscillator so we can rebuild them on a track change.
-  const oscRefs = [];
-  (track ? track.notes : [110, 164.8, 220.6]).forEach((f, i) => {
-    const osc = audioCtx.createOscillator();
-    osc.type = 'sine';
-    osc.frequency.value = f;
-    osc.detune.value = (i - 1) * 7;
-    const g = audioCtx.createGain();
-    g.gain.value = i === 0 ? 0.16 : 0.08;
-    osc.connect(g);
-    g.connect(lp);
-    osc.start();
-    ambientOscillators.push(osc);
-    oscRefs.push(osc);
+function playTrack() {
+  const t = TRACKS[currentTrack];
+  const el = ensureAudioEl();
+  if (!el.src || el.src.indexOf(t.file) === -1) loadTrack(currentTrack);
+  el.play().then(() => {
+    isPlaying = true;
+    syncPlayUI();
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  }).catch(() => {
+    // Autoplay / decode failure — keep UI honest.
+    isPlaying = false;
+    syncPlayUI();
   });
-
-  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-  ambientNoise = audioCtx.createBufferSource();
-  ambientNoise.buffer = buf;
-  ambientNoise.loop = true;
-  const bp = audioCtx.createBiquadFilter();
-  bp.type = 'bandpass'; bp.frequency.value = track ? track.noiseHz : 1600; bp.Q.value = 0.5;
-  const ng = audioCtx.createGain();
-  ng.gain.value = 0.008;
-  ambientNoise.connect(bp); bp.connect(ng); ng.connect(ambientGain);
-  ambientNoise.start();
-
-  ambientGain.gain.linearRampToValueAtTime(0.6, audioCtx.currentTime + 1.6);
-  return true;
 }
 
-function stopAmbient() {
-  if (!ambientGain || !audioCtx) return;
-  if (beatRAF) { cancelAnimationFrame(beatRAF); beatRAF = null; }
-  const ctx = audioCtx;
-  ambientGain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.6);
-  setTimeout(() => {
-    ambientOscillators.forEach(o => { try { o.stop(); o.disconnect(); } catch (e) {} });
-    if (ambientNoise) { try { ambientNoise.stop(); ambientNoise.disconnect(); } catch (e) {} }
-    ambientOscillators = [];
-    ambientNoise = null;
-    ambientGain = null;
-    analyser = null;
-    try { ctx.close(); } catch (e) {}
-    audioCtx = null;
-  }, 700);
+function pauseTrack() {
+  if (audioEl) audioEl.pause();
+  isPlaying = false;
+  syncPlayUI();
 }
 
-function ambientSwoop() {
-  if (!audioCtx || !ambientOscillators.length) return;
-  const osc = ambientOscillators[0];
-  if (!osc || !osc.frequency) return;
-  const base = osc.frequency.value;
-  const t = audioCtx.currentTime;
-  osc.frequency.cancelScheduledValues(t);
-  osc.frequency.setValueAtTime(base, t);
-  osc.frequency.linearRampToValueAtTime(base * 1.5, t + 0.35);
-  osc.frequency.linearRampToValueAtTime(base, t + 1.1);
-}
-
-/* Switch to the next (or a specific) soundscape. If audio is playing, rebuild
-   the chord bed + room ambience in place (a short crossfade on the master
-   gain) so the change is seamless. */
+/* Switch to the next (or a specific) track, with a short crossfade. */
 function switchTrack(index) {
   const next = ((index == null ? currentTrack + 1 : index) % TRACKS.length + TRACKS.length) % TRACKS.length;
   if (next === currentTrack) return;
   currentTrack = next;
   setDockLabel();
-  if (!isPlaying || !audioCtx) return; // just relabeled; audio starts on play
-  // Crossfade: duck the master, rebuild the soundscape, bring it back.
-  const ctx = audioCtx;
-  const was = ambientGain;
-  if (was && was.gain && ctx) was.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.3);
-  setTimeout(() => {
-    // Tear down the old oscillators/noise.
-    ambientOscillators.forEach(o => { try { o.stop(); o.disconnect(); } catch (e) {} });
-    if (ambientNoise) { try { ambientNoise.stop(); ambientNoise.disconnect(); } catch (e) {} }
-    ambientOscillators = [];
-    ambientNoise = null;
-    // Rebuild with the new track (reuses audioCtx/analyser/gain chain).
-    const track = TRACKS[currentTrack];
-    const lp = ctx.createBiquadFilter();
-    lp.type = 'lowpass'; lp.frequency.value = track.cutoff; lp.Q.value = 0.8;
-    lp.connect(ambientGain);
-    track.notes.forEach((f, i) => {
-      const osc = ctx.createOscillator();
-      osc.type = 'sine';
-      osc.frequency.value = f;
-      osc.detune.value = (i - 1) * 7;
-      const g = ctx.createGain();
-      g.gain.value = i === 0 ? 0.16 : 0.08;
-      osc.connect(g); g.connect(lp); osc.start();
-      ambientOscillators.push(osc);
-    });
-    const buf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-    const bs = ctx.createBufferSource();
-    bs.buffer = buf; bs.loop = true;
-    const bp2 = ctx.createBiquadFilter();
-    bp2.type = 'bandpass'; bp2.frequency.value = track.noiseHz; bp2.Q.value = 0.5;
-    const ng2 = ctx.createGain(); ng2.gain.value = 0.008;
-    bs.connect(bp2); bp2.connect(ng2); ng2.connect(ambientGain); bs.start();
-    ambientNoise = bs;
-    if (ambientGain && ambientGain.gain) ambientGain.gain.linearRampToValueAtTime(0.6, ctx.currentTime + 0.6);
-    ambientSwoop();
-  }, 320);
+  if (!isPlaying) return; // just relabeled; audio starts on play
+  const wasPlaying = isPlaying;
+  const el = ensureAudioEl();
+  const fade = audioCtx && audioCtx.createGain ? audioCtx.createGain() : null;
+  el.pause();
+  loadTrack(currentTrack);
+  el.play().catch(() => {});
+  syncPlayUI();
 }
 
 dockNext.addEventListener('click', () => {
   switchTrack();
-  showToast('Change the mood', { type: 'info', description: TRACKS[currentTrack].name + ' — ' + TRACKS[currentTrack].artist, duration: 2000 });
+  const t = TRACKS[currentTrack];
+  showToast('Change the mood', { type: 'info', description: t.name + ' — ' + t.artist, duration: 2000 });
 });
 
 dockPlay.addEventListener('click', () => {
-  isPlaying = !isPlaying;
-  dockVinyl.classList.toggle('spinning', isPlaying);
-  audioDock.classList.toggle('playing', isPlaying);
-  dockPlay.textContent = isPlaying ? '❚❚' : '▶';
-  setDockLabel();
   if (isPlaying) {
-    startAmbient();
-    showToast('Now playing', {
-      type: 'info',
-      description: TRACKS[currentTrack].name + ' — ' + TRACKS[currentTrack].artist,
-      duration: 3000
-    });
+    pauseTrack();
+    showToast('Paused', { type: 'info', description: 'the vibe rests for now', duration: 2000 });
   } else {
-    stopAmbient();
-    showToast('Paused', {
-      type: 'info',
-      description: 'the vibe rests for now',
-      duration: 2000
-    });
+    playTrack();
+    const t = TRACKS[currentTrack];
+    showToast('Now playing', { type: 'info', description: t.name + ' — ' + t.artist, duration: 3000 });
   }
 });
 
@@ -1693,16 +1567,97 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden && audioCtx && audioCtx.state === 'suspended' && isPlaying) audioCtx.resume();
 });
 
-/* ── Easter egg: double-tap the vinyl → night drive mode ── */
+// Beat-reactive lighting loop (driven by the real track's audio).
+let beatFrame = 0;
+let lastLow = -1, lastMid = -1, lastHigh = -1, lastAvg = -1;
+const beatReduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function beatLoop() {
+  if (!analyser || !isPlaying) { beatRAF = null; return; }
+  const beatData = new Uint8Array(analyser.frequencyBinCount);
+  analyser.getByteFrequencyData(beatData);
+  let low = 0, mid = 0, high = 0, sum = 0;
+  for (let i = 0; i < beatData.length; i++) {
+    const v = beatData[i] / 255;
+    sum += v;
+    if (i < 4) low += v;
+    else if (i < 10) mid += v;
+    else high += v;
+  }
+  const avg = sum / beatData.length;
+  low = Math.min(1, low / 4);
+  mid = Math.min(1, mid / 6);
+  high = Math.min(1, high / (beatData.length - 10));
+  if (beatReduce) { beatRAF = requestAnimationFrame(beatLoop); return; }
+  if ((beatFrame++ % 6) !== 0) { beatRAF = requestAnimationFrame(beatLoop); return; }
+  const q = (v) => Math.round(v * 20) / 20;
+  low = q(low); mid = q(mid); high = q(high);
+  const avgQ = q(avg);
+  if (beatHeroVisible !== false) {
+    if (low !== lastLow) { lastLow = low; document.documentElement.style.setProperty('--beat-low', String(low)); }
+    if (mid !== lastMid) { lastMid = mid; document.documentElement.style.setProperty('--beat-mid', String(mid)); }
+    if (high !== lastHigh) { lastHigh = high; document.documentElement.style.setProperty('--beat-high', String(high)); }
+    if (avgQ !== lastAvg) { lastAvg = avgQ; document.documentElement.style.setProperty('--beat-avg', String(avgQ)); }
+  }
+  beatRAF = requestAnimationFrame(beatLoop);
+}
+
+// ── Metadata extraction (music-metadata-browser) ──
+// Reads every tag embedded in the file (FLAC Vorbis comments, ID3v2, etc.)
+// and updates the dock labels + stores the full set + cover art.
+async function readTrackMetadata(index, fallback) {
+  try {
+    const mm = window.musicMetadata;
+    if (!mm) return;
+    const res = await mm.parseBlob(await fetch(fallback.file).then(r => r.blob()));
+    const m = {
+      name:        res.common.title  || fallback.name,
+      artist:      res.common.artist || res.common.artists && res.common.artists[0] || fallback.artist,
+      album:       res.common.album  || fallback.album,
+      year:        res.common.year   || fallback.year,
+      genre:       res.common.genre  && res.common.genre[0] || undefined,
+      duration:    res.format.duration,
+      bitrate:     res.format.bitrate,
+      codec:       res.format.codec,
+      sampleRate:  res.format.sampleRate,
+      channels:    res.format.numberOfChannels,
+      picture:     res.common.picture && res.common.picture[0] || null,
+    };
+    trackMeta[index] = m;
+    if (index === currentTrack) setDockLabel();
+    renderCover(m);
+  } catch (e) { /* no metadata / file missing — fall back to hardcoded tags */ }
+}
+
+function renderCover(m) {
+  const cover = document.getElementById('dockCover');
+  if (!cover) return;
+  if (m && m.picture) {
+    const url = URL.createObjectURL(new Blob([m.picture.data], { type: m.picture.format }));
+    cover.style.backgroundImage = 'url("' + url + '")';
+    cover.classList.add('has-art');
+  } else {
+    cover.style.backgroundImage = '';
+    cover.classList.remove('has-art');
+  }
+}
+
+/* ── Easter egg: double-tap the vinyl → night drive mode (turbo the light show) ── */
 dockVinyl.addEventListener('dblclick', () => {
   const reduceM = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (isPlaying && !reduceM) ambientSwoop();
-  showToast('night drive mode', {
-    type: 'info',
-    description: 'for the night drives ♥',
-    duration: 2500
-  });
+  if (isPlaying && !reduceM) {
+    // A quick lighting flourish.
+    document.documentElement.style.setProperty('--beat-high', '1');
+    setTimeout(() => document.documentElement.style.setProperty('--beat-high', '0'), 900);
+  }
+  showToast('night drive mode', { type: 'info', description: 'for the night drives ♥', duration: 2500 });
 });
+
+// Start the beat loop lazily once audio begins.
+(function ensureBeatLoop() {
+  const t = setInterval(() => {
+    if (isPlaying && !beatRAF) { beatLoop(); clearInterval(t); }
+  }, 300);
+})();
 
 /* ═══════════════════════════════════════════
    SMOOTH SCROLL FOR NAV

@@ -12,8 +12,5 @@
   "devDependencies": {
     "lightningcss": "^1.25.0",
     "terser": "^5.31.0"
-  },
-  "dependencies": {
-    "three": "^0.170.0"
   }
 }
