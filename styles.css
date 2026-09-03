@@ -727,6 +727,14 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   opacity: 0;
   transform: translateY(30px);
 }
+/* If JS never runs (or errors before reveal), content must still be visible.
+   The .js class on <html> is added by an inline script, so animations hide
+   reveals only when JS is genuinely present. */
+html.no-js .reveal,
+html:not(.js) .reveal {
+  opacity: 1;
+  transform: none;
+}
 .reveal.revealed {
   opacity: 1;
   transform: translateY(0);
