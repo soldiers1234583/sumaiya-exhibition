@@ -30,6 +30,7 @@ const SIDECAR_FILES = [
   'vendor/tsparticles.bundle.min.js',
   'vendor/music-metadata.mjs',
   'vendor/music-metadata-loader.mjs',
+  'vendor/process.mjs',
 ];
 
 function walk(dir) {
