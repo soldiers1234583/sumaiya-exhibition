@@ -1195,7 +1195,6 @@ mm.add({ motionOK: '(prefers-reduced-motion: no-preference)', motionReduce: REDU
     if (finaleCard) {
       const washi = finaleCard.querySelectorAll('.washi');
       const polaroid = finaleCard.querySelector('.polaroid-main');
-      const polaroidBacks = finaleCard.querySelectorAll('.polaroid-back');
       const statement = finaleCard.querySelector('.finale-statement');
       const statementFull = statement ? statement.textContent.trim() : 'Thank you for being my friend.';
       const dedication = finaleCard.querySelector('.finale-dedication');
@@ -1221,7 +1220,6 @@ mm.add({ motionOK: '(prefers-reduced-motion: no-preference)', motionReduce: REDU
       gsap.set(finaleCard, { opacity: 0, y: 70, scale: 0.97 });
       gsap.set(washi, { opacity: 0, scaleY: 0.2, rotate: 0 });
       gsap.set(polaroid, { opacity: 0, y: 60, rotate: 5, scale: 0.9 });
-      gsap.set(polaroidBacks, { opacity: 0 });
       gsap.set(polaroid.querySelector('.polaroid-glow'), { opacity: 0 });
       gsap.set(polaroid.querySelector('.polaroid-sheen'), { opacity: 0, x: '-130%' });
       gsap.set([statement, dedication, btn], { opacity: 0, y: 22 });
@@ -1237,7 +1235,6 @@ mm.add({ motionOK: '(prefers-reduced-motion: no-preference)', motionReduce: REDU
               opacity: 1, scaleY: 1, rotate: (i, el) => washiTargetRot(el),
               duration: 0.45, ease: 'back.out(2)', stagger: 0.07
             }, '-=0.4')
-            .to(polaroidBacks, { opacity: 1, duration: 0.5, ease: 'power2.out' }, '-=0.15')
             .to(polaroid, {
               opacity: 1, y: 0, rotate: -3, scale: 1,
               duration: 0.7, ease: 'back.out(1.3)'
