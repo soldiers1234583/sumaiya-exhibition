@@ -1423,11 +1423,39 @@ document.querySelectorAll('.vibe-fill').forEach(fill => {
 const audioDock = document.getElementById('audioDock');
 const dockVinyl = document.getElementById('dockVinyl');
 const dockPlay = document.getElementById('dockPlay');
+const dockNext = document.getElementById('dockNext');
+const dockTrackEl = document.getElementById('dockTrack');
+const dockArtistEl = document.getElementById('dockArtist');
 let isPlaying = false;
 ScrollTrigger.create({
   trigger: '#gallery', start: 'top 80%', once: true,
   onEnter: () => audioDock.classList.add('visible'),
 });
+
+/* ── Procedural soundscapes — the "tracks" you can switch between ──
+   Each is a distinct chord/scale + filter + pulse mood built purely from
+   WebAudio (no audio files, self-hosted, offline-friendly). Each entry:
+     notes   : array of frequencies (Hz) for the chord/arpeggio bed
+     cutoff  : lowpass cutoff (Hz) shaping warmth vs airiness
+     noiseHz : bandpass centre for the room-ambience texture
+     pulse   : optional beat (null = even drift; a Hz value = slow pulse)
+     vinyl   : whether the vinyl should keep spinning (all do while playing) */
+const TRACKS = [
+  { name: '505',        artist: 'Arctic Monkeys',     notes: [110, 164.8, 220.6, 329.6], cutoff: 420,  noiseHz: 1600, pulse: null },
+  { name: 'Amber Haze', artist: 'The Exhibition',     notes: [130.8, 174.6, 261.6, 392],  cutoff: 700,  noiseHz: 1100, pulse: 0.22 },
+  { name: 'Warm Static',artist: 'Fireside Choir',     notes: [98, 146.8, 196, 293.7],    cutoff: 260,  noiseHz: 2200, pulse: null },
+  { name: 'Blue Hour',  artist: 'Moth & Moon',        notes: [86.5, 129.6, 172.7, 259.1], cutoff: 900,  noiseHz: 800,  pulse: 0.18 },
+  { name: 'Paper Stars',artist: 'Kite Season',        notes: [147, 196, 246.9, 369.9],   cutoff: 560,  noiseHz: 1400, pulse: 0.3 },
+  { name: 'Quiet Gold', artist: 'The Archive',        notes: [112, 149.5, 224, 336.5],    cutoff: 340,  noiseHz: 1900, pulse: null },
+];
+let currentTrack = 0;
+function setDockLabel() {
+  const t = TRACKS[currentTrack];
+  if (dockTrackEl) dockTrackEl.textContent = t.name;
+  if (dockArtistEl) dockArtistEl.textContent = t.artist;
+  if (dockPlay) dockPlay.setAttribute('aria-label', (isPlaying ? 'Pause ' : 'Play ') + t.name + ' by ' + t.artist);
+}
+setDockLabel();
 
 /* ── WebAudio ambient — a warm exhibition-hall hum ── */
 let audioCtx = null;
@@ -1512,13 +1540,18 @@ function startAmbient() {
   }
   beatLoop();
 
+  const track = TRACKS[currentTrack];
+
   const lp = audioCtx.createBiquadFilter();
   lp.type = 'lowpass';
-  lp.frequency.value = 420;
+  lp.frequency.value = track ? track.cutoff : 420;
   lp.Q.value = 0.8;
   lp.connect(ambientGain);
 
-  [110, 164.8, 220.6].forEach((f, i) => {
+  // Build the chord bed from the current track's note frequencies. Keep a
+  // reference to each oscillator so we can rebuild them on a track change.
+  const oscRefs = [];
+  (track ? track.notes : [110, 164.8, 220.6]).forEach((f, i) => {
     const osc = audioCtx.createOscillator();
     osc.type = 'sine';
     osc.frequency.value = f;
@@ -1529,6 +1562,7 @@ function startAmbient() {
     g.connect(lp);
     osc.start();
     ambientOscillators.push(osc);
+    oscRefs.push(osc);
   });
 
   const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
@@ -1538,7 +1572,7 @@ function startAmbient() {
   ambientNoise.buffer = buf;
   ambientNoise.loop = true;
   const bp = audioCtx.createBiquadFilter();
-  bp.type = 'bandpass'; bp.frequency.value = 1600; bp.Q.value = 0.5;
+  bp.type = 'bandpass'; bp.frequency.value = track ? track.noiseHz : 1600; bp.Q.value = 0.5;
   const ng = audioCtx.createGain();
   ng.gain.value = 0.008;
   ambientNoise.connect(bp); bp.connect(ng); ng.connect(ambientGain);
@@ -1577,17 +1611,71 @@ function ambientSwoop() {
   osc.frequency.linearRampToValueAtTime(base, t + 1.1);
 }
 
+/* Switch to the next (or a specific) soundscape. If audio is playing, rebuild
+   the chord bed + room ambience in place (a short crossfade on the master
+   gain) so the change is seamless. */
+function switchTrack(index) {
+  const next = ((index == null ? currentTrack + 1 : index) % TRACKS.length + TRACKS.length) % TRACKS.length;
+  if (next === currentTrack) return;
+  currentTrack = next;
+  setDockLabel();
+  if (!isPlaying || !audioCtx) return; // just relabeled; audio starts on play
+  // Crossfade: duck the master, rebuild the soundscape, bring it back.
+  const ctx = audioCtx;
+  const was = ambientGain;
+  if (was && was.gain && ctx) was.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.3);
+  setTimeout(() => {
+    // Tear down the old oscillators/noise.
+    ambientOscillators.forEach(o => { try { o.stop(); o.disconnect(); } catch (e) {} });
+    if (ambientNoise) { try { ambientNoise.stop(); ambientNoise.disconnect(); } catch (e) {} }
+    ambientOscillators = [];
+    ambientNoise = null;
+    // Rebuild with the new track (reuses audioCtx/analyser/gain chain).
+    const track = TRACKS[currentTrack];
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = track.cutoff; lp.Q.value = 0.8;
+    lp.connect(ambientGain);
+    track.notes.forEach((f, i) => {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = f;
+      osc.detune.value = (i - 1) * 7;
+      const g = ctx.createGain();
+      g.gain.value = i === 0 ? 0.16 : 0.08;
+      osc.connect(g); g.connect(lp); osc.start();
+      ambientOscillators.push(osc);
+    });
+    const buf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    const bs = ctx.createBufferSource();
+    bs.buffer = buf; bs.loop = true;
+    const bp2 = ctx.createBiquadFilter();
+    bp2.type = 'bandpass'; bp2.frequency.value = track.noiseHz; bp2.Q.value = 0.5;
+    const ng2 = ctx.createGain(); ng2.gain.value = 0.008;
+    bs.connect(bp2); bp2.connect(ng2); ng2.connect(ambientGain); bs.start();
+    ambientNoise = bs;
+    if (ambientGain && ambientGain.gain) ambientGain.gain.linearRampToValueAtTime(0.6, ctx.currentTime + 0.6);
+    ambientSwoop();
+  }, 320);
+}
+
+dockNext.addEventListener('click', () => {
+  switchTrack();
+  showToast('Change the mood', { type: 'info', description: TRACKS[currentTrack].name + ' — ' + TRACKS[currentTrack].artist, duration: 2000 });
+});
+
 dockPlay.addEventListener('click', () => {
   isPlaying = !isPlaying;
   dockVinyl.classList.toggle('spinning', isPlaying);
   audioDock.classList.toggle('playing', isPlaying);
   dockPlay.textContent = isPlaying ? '❚❚' : '▶';
-  dockPlay.setAttribute('aria-label', isPlaying ? 'Pause the exhibition sound' : 'Play the exhibition sound');
+  setDockLabel();
   if (isPlaying) {
     startAmbient();
     showToast('Now playing', {
       type: 'info',
-      description: 'a warm hum for the exhibition — 505 for the night drives',
+      description: TRACKS[currentTrack].name + ' — ' + TRACKS[currentTrack].artist,
       duration: 3000
     });
   } else {

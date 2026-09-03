@@ -635,14 +635,15 @@
 <!-- ═══════════════════════════════════════════
      AUDIO DOCK
      ═══════════════════════════════════════════ -->
-<div class="audio-dock" id="audioDock" role="region" aria-label="Music player">
+ <div class="audio-dock" id="audioDock" role="region" aria-label="Music player">
   <div class="dock-vinyl" id="dockVinyl" aria-hidden="true"></div>
   <div class="dock-info">
-    <span class="dock-track">505</span>
-    <span class="dock-artist">Arctic Monkeys</span>
+    <span class="dock-track" id="dockTrack">505</span>
+    <span class="dock-artist" id="dockArtist">Arctic Monkeys</span>
   </div>
+  <button class="dock-next btn-interactive" id="dockNext" aria-label="Change track" title="Change track">⏭</button>
   <button class="dock-play btn-interactive" id="dockPlay" aria-label="Play 505 by Arctic Monkeys">▶</button>
-</div>
+ </div>
 
 <!-- Confetti is provided by canvas-confetti (self-hosted vendor) -->
 
