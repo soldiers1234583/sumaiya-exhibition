@@ -1433,16 +1433,18 @@ ScrollTrigger.create({
 });
 
 /* ── Tracklist — the songs you add as FLAC (or mp3) in /audio/ ──
-   Each entry: file (relative path, lowercase-friendly), and the tags we know
-   up-front. At runtime we RE-READ the actual embedded FLAC/ID3 tags with
-   music-metadata and override these, so the metadata is always the real,
-   complete set from the file itself (title, artist, album, year, genre,
-   duration, bitrate, codec, cover art). */
+   Each entry: file (relative path, lowercase-friendly), plus the metadata we
+   verified from a public catalog API (iTunes Search / MusicBrainz). At runtime
+   we RE-READ the actual embedded FLAC/ID3 tags with music-metadata and
+   override these, so the metadata is always the real, complete set from the
+   file itself (title, artist, album, year, genre, duration, bitrate, codec,
+   cover art). coverUrl is used as a live fallback for the cover thumbnail
+   when the file has no embedded art yet. */
 const TRACKS = [
-  { file: 'audio/505.flac',              name: '505',                 artist: 'Arctic Monkeys',      album: 'Favourite Worst Nightmare', year: 2007 },
-  { file: 'audio/softcore.flac',         name: 'Softcore',            artist: 'The Neighbourhood',   album: 'Hard To Imagine The Neighbourhood Ever Changing', year: 2018 },
-  { file: 'audio/i-wanna-be-yours.flac', name: 'I Wanna Be Yours',    artist: 'Arctic Monkeys',      album: 'AM',                        year: 2013 },
-  { file: 'audio/stay-at-your-house.flac', name: 'I Really Want to Stay at Your House', artist: 'Rosa Walton', album: 'Cyberpunk 2077: Radio, Vol. 2 (Original Soundtrack)', year: 2020 },
+  { file: 'audio/505.flac',                name: '505',                              artist: 'Arctic Monkeys',               album: 'Favourite Worst Nightmare',               year: 2007, genre: 'Alternative', duration: 254, coverUrl: 'https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/82/90/14/829014ad-a301-62ab-bee6-f4cca4457411/mzi.hozudery.jpg/200x200bb.jpg' },
+  { file: 'audio/softcore.flac',           name: 'Softcore',                         artist: 'The Neighbourhood',            album: 'Hard To Imagine The Neighbourhood Ever Changing', year: 2018, genre: 'Alternative', duration: 206, coverUrl: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/fc/d0/89/fcd0899c-2236-a726-9ce2-ebb110e2204d/886447414545.jpg/200x200bb.jpg' },
+  { file: 'audio/i-wanna-be-yours.flac',   name: 'I Wanna Be Yours',                 artist: 'Arctic Monkeys',               album: 'AM',                                    year: 2013, genre: 'Alternative', duration: 184, coverUrl: 'https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/69/9c/b5/699cb5d6-115c-ff73-9d26-e57ea4350d72/887828031795.png/200x200bb.jpg' },
+  { file: 'audio/stay-at-your-house.flac', name: 'I Really Want to Stay at Your House', artist: 'Rosa Walton & Hallie Coggins', album: 'Cyberpunk 2077: Radio, Vol. 2 (Original Soundtrack)', year: 2020, genre: 'Soundtrack', duration: 247, coverUrl: 'https://is1-ssl.mzstatic.com/image/thumb/Music114/v4/1b/41/2b/1b412bef-ba81-3173-6d26-41128c0f366c/780163581720.jpg/200x200bb.jpg' },
 ];
 let currentTrack = 0;
 let trackMeta = []; // enriched metadata read from each file
@@ -1454,6 +1456,8 @@ function setDockLabel() {
   if (dockArtistEl) dockArtistEl.textContent = meta.artist || t.artist;
   if (dockPlay) dockPlay.setAttribute('aria-label', (isPlaying ? 'Pause ' : 'Play ') + (meta.name || t.name) + ' by ' + (meta.artist || t.artist));
 }
+// Show the first track's real album art on load.
+try { renderCover(trackMeta[0], TRACKS[0]); } catch (e) {}
 setDockLabel();
 
 /* ── Audio engine — real <audio> element → analyser → beat-reactive lighting ── */
@@ -1607,15 +1611,15 @@ function beatLoop() {
 async function readTrackMetadata(index, fallback) {
   try {
     const mm = window.musicMetadata;
-    if (!mm) return;
+    if (!mm) { renderCover({ picture: null }); return; }
     const res = await mm.parseBlob(await fetch(fallback.file).then(r => r.blob()));
     const m = {
       name:        res.common.title  || fallback.name,
       artist:      res.common.artist || res.common.artists && res.common.artists[0] || fallback.artist,
       album:       res.common.album  || fallback.album,
       year:        res.common.year   || fallback.year,
-      genre:       res.common.genre  && res.common.genre[0] || undefined,
-      duration:    res.format.duration,
+      genre:       res.common.genre  && res.common.genre[0] || fallback.genre,
+      duration:    res.format.duration || fallback.duration,
       bitrate:     res.format.bitrate,
       codec:       res.format.codec,
       sampleRate:  res.format.sampleRate,
@@ -1624,16 +1628,24 @@ async function readTrackMetadata(index, fallback) {
     };
     trackMeta[index] = m;
     if (index === currentTrack) setDockLabel();
-    renderCover(m);
-  } catch (e) { /* no metadata / file missing — fall back to hardcoded tags */ }
+    renderCover(m, fallback);
+  } catch (e) {
+    // File missing / can't read — fall back to the verified catalog metadata.
+    renderCover(null, fallback);
+  }
 }
 
-function renderCover(m) {
+function renderCover(m, fallback) {
   const cover = document.getElementById('dockCover');
   if (!cover) return;
+  // Prefer embedded art from the file; else fall back to the real album art
+  // URL fetched from the catalog API (so the dock shows cover art immediately).
   if (m && m.picture) {
     const url = URL.createObjectURL(new Blob([m.picture.data], { type: m.picture.format }));
     cover.style.backgroundImage = 'url("' + url + '")';
+    cover.classList.add('has-art');
+  } else if (fallback && fallback.coverUrl) {
+    cover.style.backgroundImage = 'url("' + fallback.coverUrl + '")';
     cover.classList.add('has-art');
   } else {
     cover.style.backgroundImage = '';
