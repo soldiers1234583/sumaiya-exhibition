@@ -1,0 +1,24 @@
+name: Diagnose live site animation state
+# Runs a real headless Chromium against the DEPLOYED site and reports the actual
+# browser state: console errors, whether the animation engine fired, reveal/DOM
+# opacity, and the prefers-reduced-motion media query result. This is ground
+# truth that can't be observed from the repo alone.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+
+      - run: npm install --no-audit --no-fund playwright @playwright/test
+
+      - run: npx playwright install chromium --with-deps
+
+      - name: Run diagnosis
+        run: node diagnose-site.mjs
