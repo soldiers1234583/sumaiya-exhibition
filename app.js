@@ -172,7 +172,7 @@ if (marqueeTrack && artworks.length) {
     const item = document.createElement('div');
     item.className = 'marquee-item';
     const img = document.createElement('img');
-    img.src = art.src + '?v=7';
+    img.src = art.src + '?v=9';
     img.alt = '';
     img.width = (art.orientation === 'landscape') ? 4 : 3;
     img.height = (art.orientation === 'landscape') ? 3 : 4;
@@ -213,7 +213,7 @@ const carouselCards = artworks.map((art, i) => {
   card.innerHTML = `
     <div class="art-card-inner">
       <div class="art-card-face art-card-front skeleton">
-        <img src="${art.src}?v=7" alt="${art.title}" width="${art.orientation === 'landscape' ? 4 : 3}" height="${art.orientation === 'landscape' ? 3 : 4}" loading="lazy" decoding="async">
+        <img src="${art.src}?v=9" alt="${art.title}" width="${art.orientation === 'landscape' ? 4 : 3}" height="${art.orientation === 'landscape' ? 3 : 4}" loading="lazy" decoding="async">
         <button class="art-examine btn-interactive" tabindex="-1" aria-label="Examine ${art.title} in fullscreen">⌕</button>
       </div>
       <div class="art-card-face art-card-back">
@@ -434,13 +434,13 @@ let lightboxLastFocused = null;
 
 function updateLightbox() {
   const art = artworks[lightboxIndex];
-  lightboxImg.src = art.src + '?v=7';
+  lightboxImg.src = art.src + '?v=9';
   lightboxImg.alt = art.title;
   lightboxCat.textContent = `CAT. ${String(lightboxIndex + 1).padStart(2, '0')} — ${art.date}`;
   lightboxTitle.textContent = `"${art.title}"`;
   lightboxCritique.textContent = art.critique;
   lightboxCount.textContent = `${lightboxIndex + 1} / ${artworks.length}`;
-  lightboxLens.style.backgroundImage = 'url("' + art.src + '?v=7")';
+  lightboxLens.style.backgroundImage = 'url("' + art.src + '?v=9")';
   lightboxLens.style.opacity = '0';
   lightboxArt.classList.remove('zoomed');
   lightboxArt.style.transformOrigin = '50% 50%';
@@ -452,7 +452,7 @@ function preloadLightbox(i) {
   [i - 1, i + 1].forEach(d => {
     const idx = ((d % artworks.length) + artworks.length) % artworks.length;
     const img = new Image();
-    img.src = artworks[idx].src + '?v=7';
+    img.src = artworks[idx].src + '?v=9';
   });
 }
 
