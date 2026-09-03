@@ -1019,6 +1019,11 @@ try {
   });
 } catch (e) { motionOK = true; /* fall back to enabled if matchMedia is unavailable */ }
 
+// Touch detection — function-scoped so it's available throughout initApp
+// (was declared inside an earlier block, causing a ReferenceError when used
+// by the flip-words code later in the same function).
+const isTouch = 'ontouchstart' in window || (navigator.maxTouchPoints || 0) > 0;
+
 // GSAP matchMedia: gate motion per tier
 const mm = gsap.matchMedia();
 mm.add({ motionOK: '(prefers-reduced-motion: no-preference)', motionReduce: REDUCE_Q }, (ctx) => {
@@ -1689,9 +1694,6 @@ navLinks.forEach(link => {
    ANIME.JS MICRO-INTERACTIONS
    ═══════════════════════════════════════════ */
 if (motionOK) {
-  /* ── Helper: detect touch device ── */
-  const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-
   /* ── Bento card hover/tap — 3D tilt + card spotlight (gsap-composed) ── */
   document.querySelectorAll('.bento-card').forEach(card => {
     const spot = card.querySelector('.bento-spotlight');
