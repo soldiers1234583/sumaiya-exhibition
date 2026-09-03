@@ -1346,6 +1346,28 @@ html:not(.js) .reveal {
   box-shadow: 0 4px 16px var(--soft-shadow);
   transform: rotate(-1.5deg);
 }
+.crochet-photo--alt { transform: rotate(1.5deg); }
+/* Two-up photo pair inside the crochet card's left column. */
+.crochet-gallery {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  align-items: center;
+}
+.crochet-gallery .crochet-photo {
+  margin: 0;
+  padding: 1.1rem;
+}
+/* Real crochet photo image fills the frame (replaces the old placeholder). */
+.crochet-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  aspect-ratio: 3 / 4;
+  border-radius: 2px;
+  background: linear-gradient(135deg, var(--sage-green) 0%, #b8c9a8 50%, var(--soft-linen) 100%);
+}
 .crochet-photo .tape {
   position: absolute;
   top: -6px;
@@ -1367,31 +1389,6 @@ html:not(.js) .reveal {
   padding: 0.15rem 0.5rem;
   border: 1px solid rgba(26, 26, 26, 0.08);
   border-radius: 2px;
-}
-.crochet-img-placeholder {
-  width: 100%;
-  height: 300px;
-  background: linear-gradient(135deg, var(--sage-green) 0%, #b8c9a8 50%, var(--soft-linen) 100%);
-  border-radius: 2px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-handwritten);
-  font-size: 1rem;
-  color: rgba(26, 26, 26, 0.3);
-  position: relative;
-  overflow: hidden;
-}
-.crochet-img-placeholder .art-svg { opacity: 1; }
-/* Yarn texture pattern */
-.crochet-img-placeholder::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image:
-    radial-gradient(circle at 20% 30%, rgba(255,255,255,0.15) 0%, transparent 50%),
-    radial-gradient(circle at 80% 70%, rgba(159,175,144,0.2) 0%, transparent 40%);
-  pointer-events: none;
 }
 
 .crochet-content h3 {
@@ -3057,7 +3054,7 @@ body.no-scroll { overflow: hidden; }
   .finale { padding: 4rem 1.5rem; }
   .finale-card { padding: 2rem; max-width: 420px; }
   .crochet-card { gap: 2rem; padding: 2rem; }
-  .crochet-img-placeholder { height: 220px; }
+  .crochet-gallery { gap: 0.9rem; }
 }
 
 /* ── Mobile (≤ 600px) ── */
@@ -3111,7 +3108,7 @@ body.no-scroll { overflow: hidden; }
     border-radius: 16px;
   }
   .crochet-photo { padding: 1rem; transform: rotate(-1deg); }
-  .crochet-img-placeholder { height: 200px; }
+  .crochet-gallery { grid-template-columns: 1fr; gap: 1rem; }
   .crochet-content h3 { font-size: 1.3rem; margin-bottom: 0.75rem; }
   .crochet-content p { font-size: 0.9rem; line-height: 1.65; }
 

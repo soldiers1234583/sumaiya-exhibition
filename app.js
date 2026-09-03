@@ -1797,14 +1797,16 @@ if (motionOK) {
   }, { passive: true });
 
   /* ── Crochet photo — text reveal on hover / tap ── */
-  const crochetPhoto = document.getElementById('crochetPhoto');
-  if (crochetPhoto) {
-    if (!isTouch) {
-      crochetPhoto.addEventListener('mouseenter', () => crochetPhoto.classList.add('hovered'));
-      crochetPhoto.addEventListener('mouseleave', () => crochetPhoto.classList.remove('hovered'));
-    } else {
-      crochetPhoto.addEventListener('click', () => crochetPhoto.classList.toggle('hovered'));
-    }
+  const crochetPhotos = document.querySelectorAll('.crochet-photo');
+  if (crochetPhotos.length) {
+    crochetPhotos.forEach(photo => {
+      if (!isTouch) {
+        photo.addEventListener('mouseenter', () => photo.classList.add('hovered'));
+        photo.addEventListener('mouseleave', () => photo.classList.remove('hovered'));
+      } else {
+        photo.addEventListener('click', () => photo.classList.toggle('hovered'));
+      }
+    });
   }
 
   /* ── Nav links — CSS-only hover (too frequent for JS animation) ── */
