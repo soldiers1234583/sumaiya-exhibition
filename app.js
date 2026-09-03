@@ -571,7 +571,7 @@ document.addEventListener('keydown', (e) => {
 const reasonBtn = document.getElementById('reasonBtn');
 const reasonText = document.getElementById('reasonText');
 const REASONS = [
-  "reason #7 — the way she laughs at her own jokes first",
+  "reason #7 — she doesn't mind what lame people says 🐦",
   "reason #23 — she remembers the small things nobody else does",
   "reason #41 — unbothered by the drama, obsessed with her people",
   "reason #67 — she makes ordinary days feel like a show you didn't want to end",
@@ -651,27 +651,27 @@ if (reasonBtn && reasonText) {
 const reasonsList = document.getElementById('reasonsList');
 if (reasonsList) {
   const REASONS_FULL = [
-    "she laughs at her own jokes first, and it's contagious",
-    "she remembers the small things nobody else does",
-    "unbothered by the drama, obsessed with her people",
-    "makes ordinary days feel like a show you didn't want to end",
-    "chaos with a plan — and the plan is usually kindness",
-    "the pen that writes faster than the heart can catch up",
-    "somehow both the calm one and the storm",
-    "turns 'I can't' into 'watch me' without any drama",
-    "the friend who actually listens, then makes you laugh",
-    "her taste is a personality trait and it's excellent",
-    "patient with the world, fierce for the people she loves",
-    "proof that soft people can be the strongest",
-    "the 505 to our nostalgia, every single time",
-    "gives the best advice and the best roast in the same breath",
-    "makes being a good person look effortless",
-    "the one who shows up, even when it costs her something",
+    "She laughs like a seagull 🐦",
+    "She doesn't mind what I say 💬",
+    "Can't ragebait her somehow — she ragebaites me 🎯",
+    "She knows I am gaylord. The lord of genius, attractive youthfulness 👑",
+    "She is the diva queen of lesbians, ofc 💅",
+    "I love her yappings and her teas ☕",
+    "She loves to create arts and crochet 🎨🧶",
+    "She stands up to any insults of me 🛡️",
+    "She is always right — or she realises she is wrong but still ragebaiting 😏",
+    "The most mature person I have seen 🌳",
+    "The most caring person besides Rishan 🤗",
+    "I can talk to her 24/7 and not get bored ∞",
+    "She might not be the most sweetest person, but the best person to be with 🍯",
+    "She might be racist... who knows... 🙃",
+    "She makes great arts but SMH says they are not good 🎭",
+    "Overall I'd do anything she says to make her happy 💖",
   ];
   REASONS_FULL.forEach((r, i) => {
     const item = document.createElement('div');
     item.className = 'reason-item';
-    item.innerHTML = `<span class="r-heart" aria-hidden="true">♥</span><span>${r}</span>`;
+    item.innerHTML = `<span class="r-heart" aria-hidden="true">♥</span><span class="r-num">${String(i + 1).padStart(2, '0')}</span><span>${r}</span>`;
     reasonsList.appendChild(item);
   });
   const reasonItems = reasonsList.querySelectorAll('.reason-item');

@@ -2343,6 +2343,15 @@ html:not(.js) .reveal {
   font-size: 0.85rem;
   flex-shrink: 0;
 }
+.reason-item .r-num {
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--vintage-gold);
+  font-family: var(--font-body);
+  min-width: 1.6em;
+}
 .reasons-ender {
   text-align: center;
   margin-top: 2.5rem;
