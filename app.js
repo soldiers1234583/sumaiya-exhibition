@@ -1274,10 +1274,7 @@ mm.add({ motionOK: '(prefers-reduced-motion: no-preference)', motionReduce: REDU
   }
 
   /* ── TIER 1: Parallax on hero motifs (GSAP — scrub needs continuous RAF) ── */
-  // Native CSS scroll timelines animate these on the compositor when available;
-  // GSAP is only the fallback for older browsers.
-  const nativeScrollTimeline = (typeof CSS !== 'undefined' && CSS.supports && CSS.supports('animation-timeline', 'scroll()'));
-  if (ok && !nativeScrollTimeline) {
+  if (ok) {
     document.querySelectorAll('.hero-motif').forEach((m, i) => {
       gsap.to(m, {
         y: () => -30 * (1 + i * 0.4),
@@ -1289,11 +1286,7 @@ mm.add({ motionOK: '(prefers-reduced-motion: no-preference)', motionReduce: REDU
   }
 
   /* ── TIER 2: General scroll reveals — anime.js ── */
-  // When native CSS scroll-driven reveal animations are supported (Chrome 115+),
-  // they animate on the compositor and we let them run — skipping this main-thread
-  // batch entirely. Otherwise fall back to the anime.js ScrollTrigger batch.
-  const nativeRenderReveal = (typeof CSS !== 'undefined' && CSS.supports && CSS.supports('animation-timeline', 'view()'));
-  if (ok && !nativeRenderReveal) {
+  if (ok) {
     /* Elements with dedicated entrances (hero timeline, gallery stagger,
        section-heading trigger) are excluded so they don't get animated twice. */
     ScrollTrigger.batch('.reveal:not(.hero-badge):not(.hero-subtitle):not(.section-heading):not(.art-card)', {
@@ -1305,8 +1298,7 @@ mm.add({ motionOK: '(prefers-reduced-motion: no-preference)', motionReduce: REDU
           opacity: [0, 1],
           translateY: [15, 0],
           // Cinematic pacing — long enough to be savoured, short enough to stay
-          // responsive. Only applied once 60fps is confirmed (falls to instant
-          // under reduced motion).
+          // responsive.
           duration: 1100,
           delay: anime.stagger(70),
           easing: 'cubicBezier(0.16, 1, 0.3, 1)',
@@ -1314,9 +1306,6 @@ mm.add({ motionOK: '(prefers-reduced-motion: no-preference)', motionReduce: REDU
         });
       },
     });
-  } else if (ok && nativeRenderReveal) {
-    // Native compositor reveal — just mark them revealed so skeletons finish.
-    document.querySelectorAll('.reveal').forEach(el => { el.classList.add('revealed'); el.querySelectorAll('.skeleton').forEach(s => s.classList.add('skel-done')); });
   } else {
     document.querySelectorAll('.reveal').forEach(el => { el.style.opacity = 1; el.classList.add('revealed'); el.querySelectorAll('.skeleton').forEach(s => s.classList.add('skel-done')); });
   }
@@ -1787,12 +1776,9 @@ if (motionOK) {
     });
   });
 
-  /* ── Scroll progress — thin gold editorial reading line ──
-     Native CSS scroll timelines (Chrome 115+) drive this on the compositor;
-     the GSAP scrub is only the fallback for older browsers. */
+  /* ── Scroll progress — thin gold editorial reading line ── */
   const progressBar = document.getElementById('scrollProgress');
-  const nativeScrollProgress = (typeof CSS !== 'undefined' && CSS.supports && CSS.supports('animation-timeline', 'scroll()'));
-  if (progressBar && !nativeScrollProgress) {
+  if (progressBar) {
     gsap.to(progressBar, {
       scaleX: 1,
       ease: 'none',
