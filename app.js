@@ -1007,14 +1007,15 @@ if (dedicateBtn) {
    ACCESSIBLE ANIMATION — TIERED GATING
    ═══════════════════════════════════════════ */
 const REDUCE_Q = '(prefers-reduced-motion: reduce)';
-// Determine motion preference via GSAP matchMedia. We use GSAP's matchMedia()
-// rather than a one-shot window.matchMedia() read because it re-evaluates and
-// reverts automatically when the OS prefers-reduced-motion setting changes at
-// runtime (no page reload required).
+// Motion preference. NOTE: this exhibition site is deliberately set to ALWAYS
+// animate — the owner has confirmed they want the animated experience on their
+// M10, where Chrome's reduced-motion setting was silently disabling every
+// animation (content stayed visible but nothing moved). We intentionally
+// override prefers-reduced-motion here so the site is consistent.
 let motionOK = true;
 try {
   gsap.matchMedia().add({ reduceMotion: REDUCE_Q }, (ctx) => {
-    motionOK = !ctx.conditions.reduceMotion;
+    motionOK = true; // ignore reduced-motion: always animate
   });
 } catch (e) { motionOK = true; /* fall back to enabled if matchMedia is unavailable */ }
 
@@ -1022,9 +1023,10 @@ try {
 const mm = gsap.matchMedia();
 mm.add({ motionOK: '(prefers-reduced-motion: no-preference)', motionReduce: REDUCE_Q }, (ctx) => {
   const { motionOK: ok } = ctx.conditions;
+  const shouldAnimate = true; // always animate, ignoring reduced-motion
 
   /* ── TIER 1: Hero entrance — anime.js ── */
-  if (ok) {
+  if (shouldAnimate) {
     // Split hero title lines into individual characters
     document.querySelectorAll('.hero-title-line').forEach(line => {
       const text = line.textContent;
@@ -1100,7 +1102,7 @@ mm.add({ motionOK: '(prefers-reduced-motion: no-preference)', motionReduce: REDU
      frames one by one in the exhibition. The blur (filter raster work) is
      only applied to the handful of cards actually in view — off-screen
      cards resolve instantly so we never blur 18 frames at once. */
-  if (ok) {
+  if (shouldAnimate) {
     const carouselEl = document.getElementById('galleryCarousel');
     const entranceCards = gsap.utils.toArray('.art-card');
     if (carouselEl && entranceCards.length) {
@@ -1138,7 +1140,7 @@ mm.add({ motionOK: '(prefers-reduced-motion: no-preference)', motionReduce: REDU
   }
 
   /* ── TIER 1: Bento cards — anime.js timeline ── */
-  if (ok) {
+  if (shouldAnimate) {
     ScrollTrigger.create({
       trigger: '.bento-grid', start: 'top 85%', once: true,
       onEnter: () => {
@@ -1159,7 +1161,7 @@ mm.add({ motionOK: '(prefers-reduced-motion: no-preference)', motionReduce: REDU
   }
 
   /* ── TIER 1: Crochet card — anime.js ── */
-  if (ok) {
+  if (shouldAnimate) {
     ScrollTrigger.create({
       trigger: '.crochet-card', start: 'top 85%', once: true,
       onEnter: () => {
@@ -1183,7 +1185,7 @@ mm.add({ motionOK: '(prefers-reduced-motion: no-preference)', motionReduce: REDU
      washi tapes peel on one by one, the polaroid is gently dropped into
      place, then the statement, dedication and button rise in their own
      beats. Everything lands in its final, CSS-native state. */
-  if (ok) {
+  if (shouldAnimate) {
     const finaleCard = document.querySelector('.finale-card');
     if (finaleCard) {
       const washi = finaleCard.querySelectorAll('.washi');
@@ -1274,7 +1276,7 @@ mm.add({ motionOK: '(prefers-reduced-motion: no-preference)', motionReduce: REDU
   }
 
   /* ── TIER 1: Parallax on hero motifs (GSAP — scrub needs continuous RAF) ── */
-  if (ok) {
+  if (shouldAnimate) {
     document.querySelectorAll('.hero-motif').forEach((m, i) => {
       gsap.to(m, {
         y: () => -30 * (1 + i * 0.4),
@@ -1286,7 +1288,7 @@ mm.add({ motionOK: '(prefers-reduced-motion: no-preference)', motionReduce: REDU
   }
 
   /* ── TIER 2: General scroll reveals — anime.js ── */
-  if (ok) {
+  if (shouldAnimate) {
     /* Elements with dedicated entrances (hero timeline, gallery stagger,
        section-heading trigger) are excluded so they don't get animated twice. */
     ScrollTrigger.batch('.reveal:not(.hero-badge):not(.hero-subtitle):not(.section-heading):not(.art-card)', {

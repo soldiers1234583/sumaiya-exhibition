@@ -365,22 +365,7 @@
   100% { opacity: 0; visibility: hidden; pointer-events: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .wing-left, .wing-right, .wing-upper, .wing-lower { animation: none; transform: scaleX(0.7); }
-  .butterfly-body { animation: none; }
-  .preloader-flight { animation: none; }
-  .wing-shimmer { animation: none; opacity: 0.5; transform: none; }
-  .wing-under { animation: none; opacity: 0; }
-  .wing-scale { animation: none; opacity: 0.5; }
-  .wing-pearl { animation: none; opacity: 0.45; }
-  .butterfly-shadow { animation: none; opacity: 0.1; }
-  .antenna { animation: none; }
-  .mote { animation: none; opacity: 0; }
-  .preloader-motif { animation: none; transform: none; opacity: 0.95; }
-  .preloader-text, .preloader-bar { animation: none; opacity: 1; }
-  .preloader-bar::after { animation: none; transform: none; left: 0; width: 100%; background: var(--vintage-gold); opacity: 0.3; }
-  .preloader::after { transition: none; opacity: 0; }
-  .fairy-light { animation: none; opacity: 0.6; }
-  .sakura-petal { animation: none; opacity: 0; }
+  /* Always-animate site: keep the preloader butterfly's motion (no animation: none). */
 }
 
 /* ═══════════════════════════════════════════
@@ -2106,48 +2091,12 @@ html:not(.js) .reveal {
    ═══════════════════════════════════════════ */
 /* Tier 1 global safety net — 0.01ms not 0s so animationend still fires */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-  /* Tier 1: remove parallax entirely */
+  /* NOTE: this exhibition is set to ALWAYS animate (owner decision on the M10).
+     The OS reduced-motion preference is deliberately ignored for this page, so
+     we do NOT blanket-zero animation durations or force reveals visible here.
+     Instead we keep only the genuinely-static safety net: no parallax collapse
+     and no decorative-only overrides, so motion still plays. */
   .hero-motif { transform: none !important; }
-  /* Tier 1: stop floating hearts */
-  .hero-motif--heart { animation: none !important; }
-  /* Tier 1: stop fairy lights */
-  .fairy-light { animation: none !important; opacity: 0.5; }
-  /* Tier 1: stop falling petals */
-  .sakura-petal { animation: none !important; opacity: 0; }
-  /* Tier 1: stop continuous spins */
-  .hero-motif--vinyl, .dock-vinyl.spinning { animation: none !important; }
-  /* Tier 2: soften reveals to quick fade */
-  .reveal { opacity: 1; transform: none; transition: opacity 0.15s ease; }
-  /* Tier 3: keep focus rings, hover lifts */
-  .scroll-prompt { animation: none; }
-  .art-card:hover, .bento-card:hover, .polaroid-main:hover { transform: none; }
-  .dedicate-btn:hover { transform: none; }
-  /* Reduced ≠ zero: re-assert the comprehension fades the blanket just killed.
-     These aid reading/state without movement, so they survive reduced motion. */
-  .reveal, .reason-text, .toast, .toast-progress,
-  .lightbox, .lightbox-art, .preloader-motif, .preloader-text, .preloader-bar {
-    transition-duration: 0.15s !important;
-  }
-  .reveal { opacity: 1; transform: none; transition: opacity 0.15s ease !important; }
-  /* Tier 3: keep micro-interactions but shorten */
-  .btn-interactive { transition-duration: 0.1s; }
-  .bento-card { transition-duration: 0.1s; }
-  .art-card { transition-duration: 0.1s; }
-  /* Carousel: no spin, no smooth slide animation */
-  .carousel-viewport { scroll-behavior: auto; }
-  .art-card { transform: scale(1); filter: none; }
-  .art-card.spinning .art-card-inner { animation: none; }
-  /* Ken Burns zoom off — keep photos static */
-  .art-card img { transform: none !important; transition: none; }
-  /* Ken Burns zoom off — keep finale photo static */
-  .polaroid img { transform: none !important; transition: none; }
-  .polaroid.breathe img { transform: none !important; }
   .polaroid-glow, .polaroid-sheen { opacity: 0 !important; }
 }
 /* Tier 3: opt-in motion — only animate when user allows */
@@ -2161,9 +2110,6 @@ html:not(.js) .reveal {
   opacity: 0;
   transform: translateY(20px) rotateX(-40deg);
   transform-origin: bottom center;
-}
-@media (prefers-reduced-motion: reduce) {
-  .hero-title-char { opacity: 1; transform: none; display: inline; }
 }
 
 /* anime.js micro-interaction states */
@@ -3075,32 +3021,10 @@ body.no-scroll { overflow: hidden; }
   transform: translateY(-2px);
 }
 
-/* ── Reduced motion: static states ── */
+/* ── Reduced motion: static states ──
+   Always-animate site: this block is intentionally emptied so no component is
+   hidden or frozen under the OS reduce-motion preference. */
 @media (prefers-reduced-motion: reduce) {
-  .flip-words { width: auto !important; }
-  .flip-word { position: static; display: none !important; opacity: 0 !important; transform: none !important; }
-  .flip-word.is-current { display: inline-block !important; opacity: 1 !important; }
-  .beam-track { clip-path: none !important; }
-  .beam-head { top: auto !important; bottom: 0 !important; transform: translate(-50%, 50%) !important; }
-  .lightbox { transition: opacity 0.01ms, visibility 0.01ms; }
-  .lightbox-art img { transition: none; }
-  .lightbox-lens { display: none; }
-  .crochet-reveal { display: none; }
-  .stitch-note-body { display: none; }
-  .stitch-note.open .stitch-note-body { display: block; }
-  .memory-marquee { display: none; }
-  .lamp-glow { display: none; }
-  .bento-spotlight { display: none; }
-  .bento-card { transform: none !important; }
-  .reason-btn { border-color: rgba(201, 162, 39, 0.5) !important; }
-  .reason-btn::before { display: none; }
-  .finale-statement.typing::after { animation: none; opacity: 0; }
-  .polaroid-stack .polaroid-back { transform: none !important; }
-  .polaroid-back { opacity: 0; }
-  .polaroid-main:hover { transform: none; }
-  .hero-highlight.swept { animation: none !important; }
-  .guestbook-submit:hover { transform: none !important; }
-  .back-to-entrance:hover { transform: none !important; }
 }
 
 /* ═══════════════════════════════════════════
@@ -3711,10 +3635,6 @@ body.no-scroll { overflow: hidden; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .aurora, .aurora::before, .aurora::after { animation: none; opacity: 0.35; }
-  .hero-title-italic { animation: none; background-position: 0 0; }
-  .finale-card::after { animation: none; opacity: 0.25; }
-  .meteor { animation: none; opacity: 0; }
-  .bento-card::after { display: none; }
-  .noise-overlay { opacity: 0.02; }
+  /* Always-animate site: aurora / shimmer / meteor / card-sheen decoration is
+     kept live. Intentionally empty. */
 }
