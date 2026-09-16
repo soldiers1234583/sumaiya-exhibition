@@ -76,9 +76,207 @@
 })();
 </script>
 
-<link rel="stylesheet" href="styles.min.css?v=8">
+<link rel="stylesheet" href="styles.min.css?v=9">
 </head>
 <body>
+<!-- ═══════════════════════════════════════════════════════════════
+     PRIVATE EXHIBITION LOCK — passcode gate.
+     Renders before anything else and covers the page on first paint.
+     Client-side only: it keeps casual visitors out, it is NOT a
+     substitute for real server-side authentication.
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="lock" id="siteLock" role="dialog" aria-modal="true" aria-labelledby="lockTitle" aria-describedby="lockHint">
+  <div class="lock-card" id="lockCard">
+    <div class="lock-badge" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4" y="10.5" width="16" height="10" rx="2.5"></rect>
+        <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"></path>
+        <circle cx="12" cy="15.6" r="1.25" fill="currentColor" stroke="none"></circle>
+      </svg>
+    </div>
+    <h2 class="lock-title" id="lockTitle">Private Exhibition</h2>
+    <p class="lock-hint" id="lockHint">This gallery is reserved. Enter the passcode to continue.</p>
+    <form class="lock-form" id="lockForm" autocomplete="off" novalidate>
+      <input class="lock-input" id="lockInput" type="password" name="passcode"
+             aria-label="Passcode" aria-describedby="lockError"
+             placeholder="Passcode" spellcheck="false" autocapitalize="off" autocorrect="off">
+      <button class="lock-btn" id="lockBtn" type="submit">Enter</button>
+    </form>
+    <p class="lock-error" id="lockError" role="alert" aria-live="assertive"></p>
+    <noscript><p class="lock-error">JavaScript is required to enter this exhibition.</p></noscript>
+    <p class="lock-foot">Mehrima Tasnim Sumaiya · The Official Exhibition</p>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── Configuration ──────────────────────────────────────────────
+     HASH is sha256("seagull"). To change the passcode, hash its
+     LOWERCASED, trimmed form — the gate lowercases input before it
+     hashes, so a hash built from mixed case can never match:
+        node -e "console.log(require('crypto').createHash('sha256').update(process.argv[1].toLowerCase()).digest('hex'))" 'NEWPASS'
+     ASCII only: the inlined sha256 returns '' for any codepoint > 255.
+     Paste the result below. The passcode is never stored in plaintext.
+     NOTE: this is unsalted sha256 of a single dictionary word, so anyone
+     who views source can reverse it instantly — the gate is obscurity,
+     not access control. Keep the real protection at the edge.
+     PERSIST = true  → unlocked for the rest of the browser tab.
+     PERSIST = false → the gate returns on every single page load. */
+  var HASH = '510bcb74ab0a8b40c6a4458e28a6fbe7ccc95a640769d24a86efa2c9bfb63191';
+  var PERSIST = true;
+  var KEY = 'exhibit-pass';
+
+  var root  = document.documentElement;
+  var lock  = document.getElementById('siteLock');
+  if (!lock) return;
+
+  var card  = document.getElementById('lockCard');
+  var form  = document.getElementById('lockForm');
+  var input = document.getElementById('lockInput');
+  var errEl = document.getElementById('lockError');
+  var btn   = document.getElementById('lockBtn');
+
+  var unlocked = false;
+  var attempts = 0;
+
+  /* ── SHA-256 (self-contained, works on any origin) ───────────── */
+  function sha256(ascii) {
+    function rr(v, a) { return (v >>> a) | (v << (32 - a)); }
+    var mp = Math.pow, maxWord = mp(2, 32), i, j, result = '', words = [];
+    var asciiBitLength = ascii.length * 8;
+    var hash = sha256.h = sha256.h || [], k = sha256.k = sha256.k || [];
+    var primeCounter = k.length, isComposite = {};
+    for (var candidate = 2; primeCounter < 64; candidate++) {
+      if (!isComposite[candidate]) {
+        for (i = 0; i < 313; i += candidate) isComposite[i] = candidate;
+        hash[primeCounter] = (mp(candidate, .5) * maxWord) | 0;
+        k[primeCounter++] = (mp(candidate, 1 / 3) * maxWord) | 0;
+      }
+    }
+    ascii += '\x80';
+    while (ascii.length % 64 - 56) ascii += '\x00';
+    for (i = 0; i < ascii.length; i++) {
+      j = ascii.charCodeAt(i);
+      if (j >> 8) return '';
+      words[i >> 2] |= j << ((3 - i) % 4) * 8;
+    }
+    words[words.length] = (asciiBitLength / maxWord) | 0;
+    words[words.length] = asciiBitLength;
+    for (j = 0; j < words.length;) {
+      var w = words.slice(j, j += 16), oldHash = hash;
+      hash = hash.slice(0, 8);
+      for (i = 0; i < 64; i++) {
+        var w15 = w[i - 15], w2 = w[i - 2], a = hash[0], e = hash[4];
+        var temp1 = hash[7]
+          + (rr(e, 6) ^ rr(e, 11) ^ rr(e, 25))
+          + ((e & hash[5]) ^ (~e & hash[6]))
+          + k[i]
+          + (w[i] = (i < 16) ? w[i] : (
+              w[i - 16]
+              + (rr(w15, 7) ^ rr(w15, 18) ^ (w15 >>> 3))
+              + w[i - 7]
+              + (rr(w2, 17) ^ rr(w2, 19) ^ (w2 >>> 10))
+            ) | 0
+          );
+        var temp2 = (rr(a, 2) ^ rr(a, 13) ^ rr(a, 22))
+          + ((a & hash[1]) ^ (a & hash[2]) ^ (hash[1] & hash[2]));
+        hash = [(temp1 + temp2) | 0].concat(hash);
+        hash[4] = (hash[4] + temp1) | 0;
+      }
+      for (i = 0; i < 8; i++) hash[i] = (hash[i] + oldHash[i]) | 0;
+    }
+    for (i = 0; i < 8; i++) {
+      for (j = 3; j + 1; j--) {
+        var b = (hash[i] >> (j * 8)) & 255;
+        result += (b < 16 ? '0' : '') + b.toString(16);
+      }
+    }
+    return result;
+  }
+
+  /* ── Freeze the page underneath while the gate is up ─────────── */
+  root.classList.add('lock-active');
+
+  function blockScroll(e) {
+    if (unlocked) return;
+    if (lock.contains(e.target)) return; // let the gate's own content breathe
+    e.preventDefault();
+  }
+  window.addEventListener('wheel', blockScroll, { passive: false });
+  window.addEventListener('touchmove', blockScroll, { passive: false });
+
+  /* ── Focus trap ──────────────────────────────────────────────── */
+  function trap(e) {
+    if (e.key !== 'Tab' || unlocked) return;
+    var f = lock.querySelectorAll('input, button, [href], [tabindex]:not([tabindex="-1"])');
+    if (!f.length) return;
+    var first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+  document.addEventListener('keydown', trap, true);
+
+  /* ── Unlock ──────────────────────────────────────────────────── */
+  function unlock() {
+    if (unlocked) return;
+    unlocked = true;
+    errEl.textContent = '';
+    document.removeEventListener('keydown', trap, true);
+    window.removeEventListener('wheel', blockScroll, { passive: false });
+    window.removeEventListener('touchmove', blockScroll, { passive: false });
+    root.classList.remove('lock-active');
+    lock.classList.add('is-hidden');
+    lock.setAttribute('aria-hidden', 'true');
+    setTimeout(function () { if (lock.parentNode) lock.parentNode.removeChild(lock); }, 520);
+    if (PERSIST) { try { sessionStorage.setItem(KEY, HASH); } catch (e) {} }
+    window.dispatchEvent(new Event('exhibit:unlocked'));
+  }
+
+  /* ── Failure feedback ────────────────────────────────────────── */
+  function fail(msg) {
+    errEl.textContent = msg;
+    lock.classList.remove('is-shaking');
+    void lock.offsetWidth; // restart the shake
+    lock.classList.add('is-shaking');
+    input.value = '';
+    input.focus();
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (unlocked) return;
+    var value = (input.value || '').trim().toLowerCase();
+    if (!value) { fail('Enter the passcode.'); return; }
+    if (sha256(value) === HASH) { unlock(); return; }
+    attempts++;
+    if (attempts >= 3) {
+      btn.disabled = true;
+      errEl.textContent = 'Too many attempts. Try again in a moment.';
+      setTimeout(function () {
+        btn.disabled = false;
+        errEl.textContent = '';
+        attempts = 0;
+        input.focus();
+      }, 4000);
+      return;
+    }
+    fail('That passcode does not match.');
+  });
+
+  // Nothing to inspect inside the gate.
+  lock.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+  /* ── Already unlocked in this tab? ───────────────────────────── */
+  if (PERSIST) {
+    try { if (sessionStorage.getItem(KEY) === HASH) { unlock(); return; } } catch (e) {}
+  }
+
+  setTimeout(function () { if (!unlocked && input) input.focus(); }, 140);
+})();
+</script>
+
 <!-- Museum spotlight — soft warm glow that lazily follows the cursor -->
 <div class="spotlight-glow" id="spotlightGlow" aria-hidden="true"></div>
 

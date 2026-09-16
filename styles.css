@@ -3657,3 +3657,175 @@ body.no-scroll { overflow: hidden; }
   /* Always-animate site: aurora / shimmer / meteor / card-sheen decoration is
      kept live. Intentionally empty. */
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   PRIVATE EXHIBITION LOCK — passcode gate styles.
+   Sits above every other layer (preloader is z-index 10000).
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Freeze the page underneath while the gate is up. */
+html.lock-active,
+html.lock-active body {
+  overflow: hidden;
+  height: 100%;
+}
+
+.lock {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(212, 175, 55, 0.10), transparent 60%),
+    linear-gradient(180deg, #FBF8F4 0%, #F3EDE4 100%);
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
+  backdrop-filter: blur(14px) saturate(1.1);
+  transition: opacity 0.5s ease, visibility 0.5s ease;
+}
+
+.lock.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.lock-card {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  padding: 40px 32px 28px;
+  text-align: center;
+  border-radius: 22px;
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  background: rgba(255, 253, 250, 0.86);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 24px 60px -20px rgba(60, 40, 20, 0.35),
+    0 4px 16px -6px rgba(60, 40, 20, 0.15);
+  animation: lockRise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes lockRise {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.lock.is-shaking .lock-card {
+  animation: lockShake 0.42s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+@keyframes lockShake {
+  10%, 90% { transform: translateX(-2px); }
+  20%, 80% { transform: translateX(4px); }
+  30%, 50%, 70% { transform: translateX(-7px); }
+  40%, 60% { transform: translateX(7px); }
+}
+
+.lock-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  margin-bottom: 18px;
+  border-radius: 50%;
+  color: #8a6d1f;
+  background: radial-gradient(circle at 30% 25%, #FBEFC9, #EAD7A0);
+  border: 1px solid rgba(212, 175, 55, 0.5);
+  box-shadow: 0 6px 18px -8px rgba(138, 109, 31, 0.6);
+}
+
+.lock-title {
+  margin: 0 0 8px;
+  font-family: 'Cherry Bomb One', system-ui, sans-serif;
+  font-size: 1.6rem;
+  font-weight: 400;
+  letter-spacing: 0.4px;
+  color: #2b2118;
+}
+
+.lock-hint {
+  margin: 0 0 24px;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: #6b5c4b;
+}
+
+.lock-form {
+  display: flex;
+  gap: 10px;
+}
+
+.lock-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 13px 16px;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 0.95rem;
+  color: #2b2118;
+  background: #fff;
+  border: 1.5px solid rgba(212, 175, 55, 0.45);
+  border-radius: 12px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.lock-input::placeholder { color: #a99a88; }
+
+.lock-input:focus {
+  border-color: #D4AF37;
+  box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.16);
+}
+
+.lock-btn {
+  flex: 0 0 auto;
+  padding: 13px 22px;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: #fff;
+  background: linear-gradient(180deg, #C9A227, #A9871B);
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 0.12s ease, filter 0.2s ease, opacity 0.2s ease;
+}
+
+.lock-btn:hover { filter: brightness(1.06); }
+.lock-btn:active { transform: translateY(1px) scale(0.99); }
+.lock-btn:focus-visible {
+  outline: 3px solid rgba(212, 175, 55, 0.55);
+  outline-offset: 2px;
+}
+.lock-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: grayscale(0.3);
+}
+
+.lock-error {
+  min-height: 1.2em;
+  margin: 12px 0 0;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 0.82rem;
+  color: #B3261E;
+}
+
+.lock-foot {
+  margin: 22px 0 0;
+  font-family: 'Caveat', cursive;
+  font-size: 1rem;
+  color: #9a8a75;
+}
+
+@media (max-width: 420px) {
+  .lock-card { padding: 32px 22px 22px; border-radius: 18px; }
+  .lock-title { font-size: 1.4rem; }
+  .lock-form { flex-direction: column; }
+  .lock-btn { width: 100%; }
+}

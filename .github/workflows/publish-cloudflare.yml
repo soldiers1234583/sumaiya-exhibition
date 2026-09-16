@@ -1,0 +1,97 @@
+name: Build & deploy to Cloudflare Pages (access-controlled)
+# This is the production publish path. The site is served from Cloudflare
+# Pages behind a Cloudflare Access policy, so every request — HTML, images,
+# audio, CSS — is authenticated at the edge before it is served. That is what
+# the in-page passcode gate cannot do on its own.
+#
+# Required repo secrets (created by scripts/setup-cloudflare-access.sh):
+#   CLOUDFLARE_API_TOKEN   scoped token with Pages:Edit
+#   CLOUDFLARE_ACCOUNT_ID  Cloudflare account id
+#
+# The Pages project (`sumaiya-exhibition`) must exist before the first run —
+# wrangler cannot create it non-interactively.
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    # Job-level so a step `if:` can test them: the secrets context is not
+    # available in `if:` expressions.
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install build deps
+        run: npm install --no-audit --no-fund
+
+      - name: Build minified assets
+        run: node build.js
+
+      - name: Stage the publishable site
+        run: |
+          mkdir -p _site
+          # Static payload only — no source, tooling, dev files, or rebuildable
+          # .br/.gz sidecars (Cloudflare compresses at the edge itself).
+          rsync -a --delete \
+            --exclude 'node_modules' \
+            --exclude '.git' \
+            --exclude '.gitignore' \
+            --exclude '.github' \
+            --exclude '.env*' \
+            --exclude '.vercel*' \
+            --exclude 'app.js' \
+            --exclude 'styles.css' \
+            --exclude 'build.js' \
+            --exclude 'minify.js' \
+            --exclude 'diagnose-site.mjs' \
+            --exclude 'server.py' \
+            --exclude 'serve.sh' \
+            --exclude 'package.json' \
+            --exclude 'package-lock.json' \
+            --exclude '*.br' \
+            --exclude '*.gz' \
+            --exclude 'dev' \
+            --exclude 'legacy' \
+            --exclude 'plans' \
+            --exclude 'scripts' \
+            ./ _site/
+          # Fail loudly if the gate or a content file is missing, rather than
+          # publishing a broken (or unprotected) site.
+          test -f _site/index.html
+          test -f _site/404.html
+          grep -q 'id="siteLock"' _site/index.html
+          echo "Staged $(find _site -type f | wc -l) files"
+
+      # Until the cutover wizard has run there are no credentials, and a red
+      # X on every push teaches people to ignore CI. Skip loudly instead.
+      - name: Cloudflare credentials missing
+        if: env.CLOUDFLARE_API_TOKEN == ''
+        run: |
+          echo "::warning title=Cloudflare deploy skipped::CLOUDFLARE_API_TOKEN is not set — the exhibit is NOT deploying behind Cloudflare Access yet. Run scripts/setup-cloudflare-access.sh to finish the cutover."
+
+      - name: Deploy to Cloudflare Pages
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy _site --project-name=sumaiya-exhibition --branch=main --commit-dirty=true

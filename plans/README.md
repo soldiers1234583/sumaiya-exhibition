@@ -58,6 +58,24 @@ These replace ~3.5 MB of 2476×4032 JPEG with ~181 KB of WebP (~120 MB → ~16 M
 GPU upload). Loaded with a JPEG fallback in `butterfly3d.js` and
 `model-viewer.js`; the originals stay on disk as the fallback source.
 
+## Privacy / access control
+
+The exhibit is private, so publishing it must stay gated. Two independent
+layers, and neither is sufficient alone:
+
+1. **Edge (the real one):** Cloudflare Pages behind a Cloudflare Access policy,
+published by `.github/workflows/publish-cloudflare.yml`. Every request — HTML,
+images, audio — is authenticated before Cloudflare serves it, so guessing an
+asset URL gets a login page. One-time setup:
+`bash scripts/setup-cloudflare-access.sh`.
+2. **In-page passcode gate:** the `#siteLock` block in `index.html` (SHA-256 of
+the passcode, `PERSIST = true` so a tab stays unlocked). Obscurity only — it
+does not survive view-source, so it is a second layer, never the only one.
+
+`publish-pages.yml` is deprecated and manual-only: it pushed the built site to a
+public repo where nothing was actually private. Delete that public copy before
+treating the exhibit as private.
+
 ## Verification notes
 
 - `npm run build` passes (CSS + 3 JS minified, 58 sidecars emitted).

@@ -1,10 +1,17 @@
-name: Build & publish to public Pages site
-# Pushes only the built static site (no source, no history, no secrets) to the
-# gh-pages branch of the PUBLIC publisher repo, keeping the source private.
+name: [DEPRECATED] Build & publish to public Pages site
+# ⚠️  DEPRECATED — no longer runs on push.
+# This workflow published the exhibit to a PUBLIC repo (github.io), where none
+# of it was actually private: the HTML was readable by anyone and every image
+# and audio file was fetchable by direct URL. Production now deploys to
+# Cloudflare Pages behind Cloudflare Access — see publish-cloudflare.yml.
+#
+# Kept manual-only as a rollback path. Before you consider the exhibit private,
+# delete the published copy in the public publisher repo:
+#   gh repo delete soldiers1234583/sumaiya-site --yes
+# (or delete just the gh-pages branch there) — otherwise the old public copy
+# stays online no matter what this repo does.
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
 
 permissions:
