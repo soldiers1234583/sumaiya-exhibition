@@ -3684,6 +3684,164 @@ html.lock-active body {
   -webkit-backdrop-filter: blur(14px) saturate(1.1);
   backdrop-filter: blur(14px) saturate(1.1);
   transition: opacity 0.5s ease, visibility 0.5s ease;
+  overflow: hidden;
+}
+
+/* ── The room the door opens into ──
+   Two graded light pools, both pre-baked gradients rather than runtime blur
+   filters, so the gate stays cheap on the phones this exhibit is built for. */
+.lock-room {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* The crown pool: the ceiling string's light falling down the card's side of
+   the room, brightest at the top centre where the cable hangs lowest. */
+.lock-room::before {
+  content: '';
+  position: absolute;
+  top: -16vmax;
+  left: 50%;
+  width: 150vmax;
+  height: 88vmax;
+  transform: translateX(-50%);
+  background: radial-gradient(
+    ellipse at 50% 50%,
+    rgba(255, 226, 170, 0.52) 0%,
+    rgba(255, 214, 150, 0.24) 34%,
+    rgba(212, 175, 55, 0.09) 58%,
+    transparent 76%
+  );
+}
+
+/* The floor pool: keeps the lower frame lit so the top isn't the only source
+   of light — an unlit floor is the giveaway that a screen is faking a room. */
+.lock-room::after {
+  content: '';
+  position: absolute;
+  bottom: -20vmax;
+  left: 50%;
+  width: 120vmax;
+  height: 56vmax;
+  transform: translateX(-50%);
+  background: radial-gradient(
+    ellipse at 50% 50%,
+    rgba(255, 217, 160, 0.26) 0%,
+    rgba(212, 175, 55, 0.08) 44%,
+    transparent 72%
+  );
+}
+
+/* ── The string ──
+   The wire is an SVG cubic stretched horizontally with preserveAspectRatio=none,
+   so its sag holds constant in px while its span follows the viewport. The bulb
+   tops in index.html are computed onto that same curve, which is why they stay
+   glued to the cable at every width. */
+.lock-string {
+  position: absolute;
+  pointer-events: none;
+  animation: lockLightsUp 1.1s var(--ease-out) both;
+}
+
+.lock-string--ceiling {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+}
+
+/* The same string, hung over the card's top edge and past both corners. */
+.lock-string--card {
+  top: -30px;
+  left: -5%;
+  right: -5%;
+  height: 56px;
+}
+
+.lock-wire {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.lock-wire path {
+  fill: none;
+  /* Darker than the bulbs it carries: that contrast is what reads as a strung
+     cable instead of a row of dots. */
+  stroke: rgba(166, 122, 40, 0.55);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  /* Without this the non-uniform stretch thins the cable vertically. */
+  vector-effect: non-scaling-stroke;
+}
+
+/* ── The bulbs — warm candle and gold only, the hero's own palette ── */
+.lock-bulb {
+  position: absolute;
+  width: 6px;
+  height: 8px;
+  margin-left: -3px;
+  border-radius: 50% 50% 46% 46%;
+  background: radial-gradient(circle at 50% 34%, #FFEFCF 0%, var(--candle) 54%, rgba(232, 168, 108, 0.9) 100%);
+  box-shadow:
+    0 0 6px 1px rgba(255, 217, 160, 0.62),
+    0 0 16px 4px rgba(212, 175, 55, 0.26);
+  animation: lockTwinkle 3.2s ease-in-out infinite;
+}
+
+.lock-bulb--gold {
+  background: radial-gradient(circle at 50% 34%, #FFF6DC 0%, #F3D68B 54%, rgba(201, 162, 39, 0.92) 100%);
+  box-shadow:
+    0 0 6px 1px rgba(255, 231, 172, 0.6),
+    0 0 18px 5px rgba(212, 175, 55, 0.34);
+}
+
+/* The little brass cap where the glass meets the cable. */
+.lock-bulb::before {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: 50%;
+  width: 3px;
+  height: 3px;
+  margin-left: -1.5px;
+  border-radius: 1px;
+  background: #A9871B;
+  opacity: 0.8;
+}
+
+/* The hero's 3.2s cadence, so the whole page twinkles in one rhythm — but with
+   a high floor, because that string is ambience and this one is switched on. */
+@keyframes lockTwinkle {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50%      { opacity: 1;   transform: scale(1.14); }
+}
+
+@keyframes lockLightsUp {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Staggered in four groups so the cable doesn't pulse as one unit. */
+.lock-bulb:nth-of-type(4n)     { animation-delay: 0.35s; }
+.lock-bulb:nth-of-type(4n + 1) { animation-delay: 0.75s; }
+.lock-bulb:nth-of-type(4n + 2) { animation-delay: 1.15s; }
+.lock-bulb:nth-of-type(4n + 3) { animation-delay: 1.55s; }
+
+/* The room flinches when the passcode is wrong. This rides the .is-shaking state
+   the gate already toggles, so it costs no JavaScript — opacity only, timed to
+   the card's own 0.42s shake. */
+.lock.is-shaking {
+  animation: lockFlinch 0.42s ease-out;
+}
+
+@keyframes lockFlinch {
+  0%, 100% { opacity: 1; }
+  35%      { opacity: 0.45; }
+  62%      { opacity: 0.86; }
 }
 
 .lock.is-hidden {
@@ -3699,13 +3857,33 @@ html.lock-active body {
   padding: 40px 32px 28px;
   text-align: center;
   border-radius: 22px;
-  border: 1px solid rgba(212, 175, 55, 0.35);
-  background: rgba(255, 253, 250, 0.86);
+  /* No stroke: this card's edge is defined by light — the lit hairline along
+     its top and the wash the garland throws down it — plus one soft shadow.
+     A 1px border under a wide shadow is the ghost-card tell. */
+  background: rgba(255, 253, 250, 0.9);
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.9) inset,
-    0 24px 60px -20px rgba(60, 40, 20, 0.35),
-    0 4px 16px -6px rgba(60, 40, 20, 0.15);
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 24px 60px -20px rgba(60, 40, 20, 0.38),
+    0 4px 16px -6px rgba(60, 40, 20, 0.18);
+  /* Keeps the light wash above the card's own surface but under its content. */
+  isolation: isolate;
   animation: lockRise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* The garland's light falling down the front of the card. */
+.lock-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    124% 78% at 50% -16%,
+    rgba(255, 226, 170, 0.55) 0%,
+    rgba(255, 222, 165, 0.22) 42%,
+    transparent 68%
+  );
 }
 
 @keyframes lockRise {
@@ -3733,12 +3911,21 @@ html.lock-active body {
   margin-bottom: 18px;
   border-radius: 50%;
   color: #8a6d1f;
-  background: radial-gradient(circle at 30% 25%, #FBEFC9, #EAD7A0);
+  /* Lit from above-left, the direction the garland throws, so the badge belongs
+     to the same light source as the card wash behind it. */
+  background: radial-gradient(circle at 32% 24%, #FFFBEF 0%, #FBEFC9 46%, #E8D3A0 100%);
   border: 1px solid rgba(212, 175, 55, 0.5);
-  box-shadow: 0 6px 18px -8px rgba(138, 109, 31, 0.6);
+  box-shadow:
+    0 6px 18px -8px rgba(138, 109, 31, 0.6),
+    0 0 24px -2px rgba(255, 214, 150, 0.5);
 }
 
 .lock-title {
+  position: relative;
+  /* The headline is its own stacking context so .lamp-glow sits behind the
+     words without falling behind the card — the same idiom .section-heading
+     uses for the lit section headings. */
+  isolation: isolate;
   margin: 0 0 8px;
   font-family: 'Cherry Bomb One', system-ui, sans-serif;
   font-size: 1.6rem;
@@ -3774,11 +3961,24 @@ html.lock-active body {
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.lock-input::placeholder { color: #a99a88; }
+/* Sign lit: the section-heading lamp-glow idiom, brighter here because on this
+   screen the title is the only thing asking to be read. */
+.lock-title .lamp-glow {
+  bottom: -12px;
+  background: radial-gradient(ellipse at center, rgba(212, 175, 55, 0.42), transparent 68%);
+}
+
+/* #7f7160 measures 4.74:1 on white and 4.59:1 on the card, clearing 4.5:1.
+   The previous #a99a88 sat at 2.70:1 on both. */
+.lock-input::placeholder { color: #7f7160; }
 
 .lock-input:focus {
   border-color: #D4AF37;
-  box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.16);
+  /* The brightest point on the card is the field you type into: the light leads
+     the eye to the only thing there is to do here. */
+  box-shadow:
+    0 0 0 4px rgba(212, 175, 55, 0.16),
+    0 0 26px -4px rgba(255, 196, 98, 0.55);
 }
 
 .lock-btn {
@@ -3796,11 +3996,15 @@ html.lock-active body {
   transition: transform 0.12s ease, filter 0.2s ease, opacity 0.2s ease;
 }
 
-.lock-btn:hover { filter: brightness(1.06); }
+.lock-btn:hover {
+  filter: brightness(1.06);
+  box-shadow: 0 0 22px -4px rgba(255, 196, 98, 0.6);
+}
 .lock-btn:active { transform: translateY(1px) scale(0.99); }
 .lock-btn:focus-visible {
   outline: 3px solid rgba(212, 175, 55, 0.55);
   outline-offset: 2px;
+  box-shadow: 0 0 24px -4px rgba(255, 196, 98, 0.62);
 }
 .lock-btn:disabled {
   opacity: 0.55;
@@ -3828,4 +4032,18 @@ html.lock-active body {
   .lock-title { font-size: 1.4rem; }
   .lock-form { flex-direction: column; }
   .lock-btn { width: 100%; }
+  /* Tuck the garland closer on a narrow card, and shrink the bulbs so they read
+     as a string rather than a row of beads. */
+  .lock-string--card { top: -26px; left: -3%; right: -3%; }
+  .lock-bulb { width: 5px; height: 7px; margin-left: -2.5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The room stays lit; only the flicker stops. A full-viewport twinkle is the
+     one decorative loop here that can genuinely discomfort, and the brief is
+     brightness rather than motion — so the bulbs hold at their on state
+     instead of going dark. */
+  .lock-string { animation: none; }
+  .lock-bulb { animation: none; opacity: 0.92; }
+  .lock.is-shaking { animation: none; }
 }

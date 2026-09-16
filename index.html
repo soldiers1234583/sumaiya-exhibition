@@ -76,7 +76,7 @@
 })();
 </script>
 
-<link rel="stylesheet" href="styles.min.css?v=9">
+<link rel="stylesheet" href="styles.min.css?v=10">
 </head>
 <body>
 <!-- ═══════════════════════════════════════════════════════════════
@@ -86,7 +86,46 @@
      substitute for real server-side authentication.
      ═══════════════════════════════════════════════════════════════ -->
 <div class="lock" id="siteLock" role="dialog" aria-modal="true" aria-labelledby="lockTitle" aria-describedby="lockHint">
+  <!-- The room the door opens into: a strung garland and the light it throws.
+       Purely presentational — every bulb is decorative, and the whole layer is
+       aria-hidden so the gate still reads as one dialog to a screen reader.
+       Bulb positions are computed onto the wire curve below, so they sit on the
+       cable at any viewport width. -->
+  <div class="lock-room" aria-hidden="true">
+    <div class="lock-string lock-string--ceiling">
+      <svg class="lock-wire" viewBox="0 0 1000 64" preserveAspectRatio="none" focusable="false">
+        <path d="M0 6 C 250 52, 750 52, 1000 6"></path>
+      </svg>
+      <span class="lock-bulb" style="left:6%;top:15.5px"></span>
+      <span class="lock-bulb" style="left:17%;top:27.6px"></span>
+      <span class="lock-bulb lock-bulb--gold" style="left:28%;top:35.0px"></span>
+      <span class="lock-bulb" style="left:39%;top:39.2px"></span>
+      <span class="lock-bulb" style="left:50%;top:40.5px"></span>
+      <span class="lock-bulb lock-bulb--gold" style="left:61%;top:39.2px"></span>
+      <span class="lock-bulb" style="left:72%;top:35.0px"></span>
+      <span class="lock-bulb" style="left:83%;top:27.6px"></span>
+      <span class="lock-bulb lock-bulb--gold" style="left:94%;top:15.5px"></span>
+    </div>
+  </div>
+
   <div class="lock-card" id="lockCard">
+    <!-- The same string, hung over the card's top edge. -->
+    <div class="lock-string lock-string--card" aria-hidden="true">
+      <svg class="lock-wire" viewBox="0 0 1000 56" preserveAspectRatio="none" focusable="false">
+        <path d="M0 4 C 250 46, 750 46, 1000 4"></path>
+      </svg>
+      <span class="lock-bulb" style="left:5%;top:11.4px"></span>
+      <span class="lock-bulb" style="left:13%;top:20.3px"></span>
+      <span class="lock-bulb lock-bulb--gold" style="left:22%;top:27.2px"></span>
+      <span class="lock-bulb" style="left:31%;top:31.8px"></span>
+      <span class="lock-bulb" style="left:40%;top:34.5px"></span>
+      <span class="lock-bulb lock-bulb--gold" style="left:50%;top:35.5px"></span>
+      <span class="lock-bulb" style="left:60%;top:34.5px"></span>
+      <span class="lock-bulb" style="left:69%;top:31.8px"></span>
+      <span class="lock-bulb lock-bulb--gold" style="left:78%;top:27.2px"></span>
+      <span class="lock-bulb" style="left:87%;top:20.3px"></span>
+      <span class="lock-bulb" style="left:95%;top:11.4px"></span>
+    </div>
     <div class="lock-badge" aria-hidden="true">
       <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
         <rect x="4" y="10.5" width="16" height="10" rx="2.5"></rect>
@@ -94,7 +133,7 @@
         <circle cx="12" cy="15.6" r="1.25" fill="currentColor" stroke="none"></circle>
       </svg>
     </div>
-    <h2 class="lock-title" id="lockTitle">Private Exhibition</h2>
+    <h2 class="lock-title" id="lockTitle">Private Exhibition<span class="lamp-glow lit" aria-hidden="true"></span></h2>
     <p class="lock-hint" id="lockHint">This gallery is reserved. Enter the passcode to continue.</p>
     <form class="lock-form" id="lockForm" autocomplete="off" novalidate>
       <input class="lock-input" id="lockInput" type="password" name="passcode"
